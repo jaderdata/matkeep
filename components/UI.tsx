@@ -63,3 +63,17 @@ export const Badge: React.FC<{ color: 'green' | 'yellow' | 'red' | 'gray' | 'blu
     </span>
   );
 };
+
+export const Checkbox: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label: string }> = ({ label, id, ...props }) => (
+  <div className="flex items-center gap-2">
+    <input
+      type="checkbox"
+      id={id}
+      className="w-4 h-4 border-gray-300 rounded-none text-gray-900 focus:ring-gray-900"
+      {...props}
+    />
+    <label htmlFor={id} className="text-[10px] font-bold text-gray-500 uppercase tracking-widest cursor-pointer hover:text-gray-900 transition-colors">
+      {label}
+    </label>
+  </div>
+);

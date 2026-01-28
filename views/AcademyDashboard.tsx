@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Users, UserCheck, UserMinus, AlertTriangle, TrendingUp, Calendar, Trophy } from 'lucide-react';
+import { Users, UserCheck, UserMinus, AlertTriangle, TrendingUp, Calendar, Trophy, Flame } from 'lucide-react';
 import { Card, Badge } from '../components/UI';
 import { FlagStatus, UserStatus, Student, Academy } from '../types';
 import { supabase } from '../services/supabase';
@@ -21,16 +21,37 @@ const KPI: React.FC<{ label: string; value: string | number; icon: React.ReactNo
 const AcademyDashboard: React.FC = () => {
   const [students, setStudents] = React.useState<Student[]>([]);
   const [academy, setAcademy] = React.useState<Academy | null>(null);
+  const [attendance, setAttendance] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     const init = async () => {
       const acaId = await fetchAcademy();
-      await fetchStudents(acaId || undefined);
+      if (acaId) {
+        await Promise.all([
+          fetchStudents(acaId),
+          fetchAttendance(acaId)
+        ]);
+      }
       setLoading(false);
     };
     init();
   }, []);
+
+  const fetchAttendance = async (academyId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('student_id, timestamp')
+        .eq('academy_id', academyId)
+        .order('timestamp', { ascending: false });
+
+      if (error) throw error;
+      setAttendance(data || []);
+    } catch (err) {
+      console.error('Error fetching attendance:', err);
+    }
+  };
 
   const fetchAcademy = async () => {
     try {
@@ -94,13 +115,51 @@ const AcademyDashboard: React.FC = () => {
   const birthdaysThisMonth = students.filter(s => {
     if (!s.birth_date) return false;
     try {
-      // Ajuste para lidar com string de data ISO ou YYYY-MM-DD
       const bDate = new Date(s.birth_date);
       return bDate.getMonth() === new Date().getMonth();
     } catch (e) {
       return false;
     }
   });
+
+  const streaksRanking = React.useMemo(() => {
+    if (!students.length || !attendance.length) return [];
+
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+    const results = students.map(student => {
+      const studentAttendance = attendance
+        .filter(a => a.student_id === student.id)
+        .map(a => a.timestamp.split('T')[0]);
+
+      const uniqueDates = Array.from(new Set(studentAttendance))
+        .sort((a: string, b: string) => b.localeCompare(a));
+
+      if (uniqueDates.length === 0) return { student, count: 0, active: false };
+
+      const lastTrainingDate = uniqueDates[0];
+      if (lastTrainingDate !== today && lastTrainingDate !== yesterday) {
+        return { student, count: 0, active: false };
+      }
+
+      let count = 1;
+      for (let i = 0; i < uniqueDates.length - 1; i++) {
+        const current = new Date(uniqueDates[i] + 'T00:00:00');
+        const next = new Date(uniqueDates[i + 1] + 'T00:00:00');
+        const diffDays = Math.round((current.getTime() - next.getTime()) / 86400000);
+
+        if (diffDays === 1) count++;
+        else break;
+      }
+      return { student, count, active: true };
+    });
+
+    return results
+      .filter(r => r.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [students, attendance]);
 
   return (
     <div className="space-y-8">
@@ -178,10 +237,29 @@ const AcademyDashboard: React.FC = () => {
                 <Trophy size={14} className="text-yellow-500" /> Attendance Ranking
               </h3>
             </div>
-            <div className="p-4 text-center py-8">
-              <p className="text-[10px] font-bold text-gray-400 uppercase leading-relaxed">
-                Attendance data will be displayed as classes are registered.
-              </p>
+            <div className="p-4 space-y-3">
+              {streaksRanking.length > 0 ? (
+                streaksRanking.map((rank, index) => (
+                  <div key={rank.student.id} className="flex items-center justify-between p-2 rounded-xl bg-gray-50 border border-gray-100 group hover:border-orange-200 hover:bg-orange-50 transition-all">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${index === 0 ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-200 text-gray-500'}`}>
+                        #{index + 1}
+                      </div>
+                      <span className="text-xs font-black uppercase text-gray-900">{rank.student.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-gray-200 shadow-sm group-hover:border-orange-300">
+                      <Flame size={12} className={rank.count >= 3 ? 'text-red-500 animate-pulse' : 'text-orange-500'} />
+                      <span className="text-[10px] font-black text-gray-900">{rank.count}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase leading-relaxed">
+                    No active streaks yet.<br />Time to get on the mat!
+                  </p>
+                </div>
+              )}
             </div>
           </Card>
 

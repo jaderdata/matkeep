@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Input, Button, Select } from '../components/UI';
+import { Card, Input, Button, Select, Checkbox } from '../components/UI';
 import { Belt, Academy, UserStatus, FlagStatus } from '../types';
 import { CheckCircle, Loader2, Camera as CameraIcon } from 'lucide-react';
 import { supabase } from '../services/supabase';
@@ -15,6 +15,8 @@ const PublicRegistration: React.FC = () => {
 
   const [view, setView] = useState<'login' | 'register'>('login');
   const [loginData, setLoginData] = useState({ email: '', password: '' });
+  const [rememberMe, setRememberMe] = useState(false);
+  const [saveCredentials, setSaveCredentials] = useState(false);
 
   // ... existing state ...
   const [step, setStep] = useState(1);
@@ -80,6 +82,18 @@ const PublicRegistration: React.FC = () => {
       }
     };
     fetchAcademy();
+
+    // Load saved credentials
+    const savedEmail = localStorage.getItem('student_remember_email');
+    const savedPass = localStorage.getItem('student_save_pass');
+    if (savedEmail) {
+      setLoginData(prev => ({ ...prev, email: savedEmail }));
+      setRememberMe(true);
+    }
+    if (savedPass) {
+      setLoginData(prev => ({ ...prev, password: savedPass }));
+      setSaveCredentials(true);
+    }
   }, [urlAcademyId]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -102,6 +116,19 @@ const PublicRegistration: React.FC = () => {
       if (urlAcademyId && data.academy_id !== urlAcademyId) {
         // Optionally warn, but for now we let them in to their own dashboard
         // console.warn('Logging into student account from different academy link');
+      }
+
+      // Handle Remember Me / Save Credentials
+      if (rememberMe || saveCredentials) {
+        localStorage.setItem('student_remember_email', loginData.email);
+      } else {
+        localStorage.removeItem('student_remember_email');
+      }
+
+      if (saveCredentials) {
+        localStorage.setItem('student_save_pass', loginData.password);
+      } else {
+        localStorage.removeItem('student_save_pass');
       }
 
       localStorage.setItem('current_student_id', data.id);
@@ -236,6 +263,20 @@ const PublicRegistration: React.FC = () => {
               onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
               required
             />
+            <div className="flex flex-col gap-3">
+              <Checkbox
+                id="student-remember"
+                label="Remember Me"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              />
+              <Checkbox
+                id="student-save"
+                label="Save Credentials"
+                checked={saveCredentials}
+                onChange={(e) => setSaveCredentials(e.target.checked)}
+              />
+            </div>
             <Button type="submit" className="w-full py-3" disabled={loading}>
               {loading ? <Loader2 className="animate-spin" /> : 'Enter Portal'}
             </Button>

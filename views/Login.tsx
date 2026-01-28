@@ -1,20 +1,31 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../services/supabase';
-import { Card, Input, Button } from '../components/UI';
+import { Card, Input, Button, Checkbox } from '../components/UI';
 import { Lock, Mail, Loader2 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Login: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(false);
+    const [saveCredentials, setSaveCredentials] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const navigate = useNavigate();
 
     React.useEffect(() => {
-        setEmail('');
-        setPassword('');
+        const savedEmail = localStorage.getItem('admin_remember_email');
+        const savedPass = localStorage.getItem('admin_save_pass');
+
+        if (savedEmail) {
+            setEmail(savedEmail);
+            setRememberMe(true);
+        }
+        if (savedPass) {
+            setPassword(savedPass);
+            setSaveCredentials(true);
+        }
         setError(null);
     }, []);
 
@@ -30,6 +41,19 @@ const Login: React.FC = () => {
             });
 
             if (error) throw error;
+
+            // Handle Remember Me / Save Credentials
+            if (rememberMe || saveCredentials) {
+                localStorage.setItem('admin_remember_email', email);
+            } else {
+                localStorage.removeItem('admin_remember_email');
+            }
+
+            if (saveCredentials) {
+                localStorage.setItem('admin_save_pass', password);
+            } else {
+                localStorage.removeItem('admin_save_pass');
+            }
 
             if (data.user?.email === 'jader_dourado@hotmail.com') {
                 navigate('/master/dashboard');
@@ -81,10 +105,24 @@ const Login: React.FC = () => {
                         />
                     </div>
 
-                    <div className="flex justify-end">
-                        <Link to="/forgot-password" className="text-[10px] font-bold text-gray-400 hover:text-gray-900 uppercase tracking-widest">
-                            Forgot my password
-                        </Link>
+                    <div className="flex flex-col gap-3">
+                        <div className="flex justify-between items-center">
+                            <Checkbox
+                                id="remember-me"
+                                label="Remember Me"
+                                checked={rememberMe}
+                                onChange={(e) => setRememberMe(e.target.checked)}
+                            />
+                            <Link to="/forgot-password" university-id="forgot-password" className="text-[10px] font-bold text-gray-400 hover:text-gray-900 uppercase tracking-widest">
+                                Forgot my password
+                            </Link>
+                        </div>
+                        <Checkbox
+                            id="save-credentials"
+                            label="Save Credentials"
+                            checked={saveCredentials}
+                            onChange={(e) => setSaveCredentials(e.target.checked)}
+                        />
                     </div>
 
                     <Button type="submit" className="w-full flex items-center justify-center gap-2 py-3" disabled={loading}>
