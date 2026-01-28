@@ -2,13 +2,13 @@
 import React from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { Card, Badge, Button } from '../components/UI';
-import { CreditCard, Calendar, Activity, Download, User, Loader2, ChevronRight, Flame, GraduationCap, LogOut } from 'lucide-react';
+import { Download, User, Loader2, ChevronRight, Flame, GraduationCap, LogOut, LayoutDashboard, CreditCard, Activity, Calendar } from 'lucide-react';
 import { Student } from '../types';
 import { supabase } from '../services/supabase';
 import { CameraCapture } from '../components/CameraCapture';
 import Barcode from 'react-barcode';
 import html2canvas from 'html2canvas';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { ResponsiveContainer } from 'recharts';
 import { PWAManager } from '../components/PWAManager';
 import { Academy } from '../types';
 import { formatUSPhone } from '../utils';
@@ -49,21 +49,32 @@ const StudentDashboard = () => {
   }, [attendance]);
 
   const streakStats = React.useMemo(() => {
-    if (attendance.length === 0) return { count: 0, active: false };
-    const uniqueDates = Array.from(new Set(attendance.map((a: any) => a.timestamp.split('T')[0])))
-      .sort((a: string, b: string) => b.localeCompare(a));
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-    const lastTrainingDate = uniqueDates[0];
-    if (lastTrainingDate !== today && lastTrainingDate !== yesterday) return { count: 0, active: false };
-    let count = 1;
-    for (let i = 0; i < uniqueDates.length - 1; i++) {
-      const current = new Date(uniqueDates[i] + 'T00:00:00');
-      const next = new Date(uniqueDates[i + 1] + 'T00:00:00');
-      const diffDays = Math.round((current.getTime() - next.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays === 1) count++; else break;
+    if (!attendance || attendance.length === 0) return { count: 0, active: false };
+    try {
+      const uniqueDates = Array.from(new Set(attendance.map((a: any) => a.timestamp?.split('T')[0])))
+        .filter(Boolean)
+        .sort((a: string, b: string) => b.localeCompare(a));
+
+      if (uniqueDates.length === 0) return { count: 0, active: false };
+
+      const today = new Date().toISOString().split('T')[0];
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      const lastTrainingDate = uniqueDates[0];
+
+      if (lastTrainingDate !== today && lastTrainingDate !== yesterday) return { count: 0, active: false };
+
+      let count = 1;
+      for (let i = 0; i < uniqueDates.length - 1; i++) {
+        const current = new Date(uniqueDates[i] + 'T00:00:00');
+        const next = new Date(uniqueDates[i + 1] + 'T00:00:00');
+        const diffDays = Math.round((current.getTime() - next.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays === 1) count++; else break;
+      }
+      return { count, active: true };
+    } catch (e) {
+      console.error("Streak calculation error:", e);
+      return { count: 0, active: false };
     }
-    return { count, active: true };
   }, [attendance]);
 
   const chartData = React.useMemo(() => {
@@ -99,8 +110,24 @@ const StudentDashboard = () => {
     } catch (err) { console.error('Error:', err); } finally { setLoading(false); }
   };
 
-  if (loading) return <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-primary" size={48} /></div>;
-  if (!student) return null;
+  if (loading) return <div className="flex items-center justify-center p-20 min-h-[60vh]"><Loader2 className="animate-spin text-primary" size={48} /></div>;
+
+  if (!student) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center gap-6 min-h-[60vh] animate-in fade-in duration-500">
+        <div className="h-24 w-24 bg-gray-100 rounded-[2rem] flex items-center justify-center text-gray-300">
+          <User size={48} />
+        </div>
+        <div>
+          <h3 className="text-xl font-black uppercase tracking-tight text-gray-900 mb-2">Node Not Found</h3>
+          <p className="text-sm text-gray-500 max-w-[240px] mx-auto">Please identify yourself to access your training dashboard.</p>
+        </div>
+        <Link to="/public/register" className="h-14 px-8 rounded-2xl bg-gray-900 text-white font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl hover:scale-105 transition-transform active:scale-95">
+          Identify Now
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -127,7 +154,7 @@ const StudentDashboard = () => {
               </div>
               <div className="h-3 w-full overflow-hidden rounded-full bg-gray-800 p-0.5">
                 <div
-                  className="h-full rounded-full bg-gradient-to-right from-primary to-pink-500 shadow-[0_0_10px_rgba(79,70,229,0.5)] transition-all duration-1000"
+                  className="h-full rounded-full bg-gradient-to-r from-primary to-pink-500 shadow-[0_0_10px_rgba(79,70,229,0.5)] transition-all duration-1000"
                   style={{ width: `${stats.xp}%` }}
                 />
               </div>
@@ -163,9 +190,9 @@ const StudentDashboard = () => {
       </div>
 
       {/* Main Action: Digital Pass */}
-      <button
-        onClick={() => window.location.hash = '#/student/card'}
-        className="group relative h-20 w-full overflow-hidden rounded-[1.5rem] bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)] transition-all active:scale-95"
+      <Link
+        to="/student/card"
+        className="group relative h-20 w-full overflow-hidden rounded-[1.5rem] bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)] transition-all active:scale-95 flex items-center"
       >
         <div className="absolute inset-y-0 left-0 w-2 bg-gray-900 group-hover:w-full transition-all duration-500 opacity-10" />
         <div className="flex h-full items-center px-6">
@@ -178,7 +205,7 @@ const StudentDashboard = () => {
           </div>
           <ChevronRight size={20} className="ml-auto text-gray-300 group-hover:text-gray-900 transition-colors" />
         </div>
-      </button>
+      </Link>
 
       {/* Training Intensity Section */}
       <div className="rounded-[2.5rem] bg-white p-6 shadow-sm border border-gray-100">
@@ -322,8 +349,18 @@ const CardPassView = () => {
     } catch (err) { console.error('Error:', err); } finally { setDownloading(false); }
   };
 
-  if (loading) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
-  if (!student) return null;
+  if (loading) return <div className="p-20 flex justify-center min-h-[60vh]"><Loader2 className="animate-spin text-primary" size={48} /></div>;
+  if (!student) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center gap-6 min-h-[60vh]">
+        <div className="h-20 w-20 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-300">
+          <CreditCard size={40} />
+        </div>
+        <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">Identify yourself to view your digital pass</p>
+        <Link to="/student/dashboard" className="text-primary font-black uppercase text-xs hover:underline">Go to Dashboard</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center gap-10 py-4 w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -474,8 +511,18 @@ const ProfileView = () => {
     } catch (err) { console.error('Error:', err); } finally { setSaving(false); }
   };
 
-  if (loading) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
-  if (!student) return null;
+  if (loading) return <div className="p-20 flex justify-center min-h-[60vh]"><Loader2 className="animate-spin text-primary" size={48} /></div>;
+  if (!student) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center gap-6 min-h-[60vh]">
+        <div className="h-20 w-20 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-300">
+          <User size={40} />
+        </div>
+        <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">Student profile not found</p>
+        <Link to="/student/dashboard" className="text-primary font-black uppercase text-xs hover:underline">Return to Dashboard</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
