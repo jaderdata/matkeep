@@ -279,32 +279,32 @@ const CardPassView = () => {
   if (!student) return <div className="p-8 text-center">Registration not found.</div>;
 
   return (
-    <div className="flex flex-col items-center gap-8 py-8">
-      <div ref={cardRef} className="p-6 bg-white">
-        <Card className="w-[320px] bg-white overflow-hidden shadow-2xl border-2 border-gray-900">
+    <div className="flex flex-col items-center gap-6 py-4 md:py-8 w-full">
+      <div ref={cardRef} className="p-4 md:p-12 bg-white w-full max-w-[480px] flex justify-center">
+        <Card className="w-full bg-white overflow-hidden shadow-2xl border-2 border-gray-900">
           <div className="bg-gray-900 text-white p-4 flex justify-between items-center">
             <span className="text-[10px] font-black tracking-widest">IDENTIFICATION</span>
             <span className="font-bold text-xs italic">MATKEEP</span>
           </div>
           <div className="p-6 flex flex-col items-center gap-4">
-            <div className="w-32 h-32 bg-gray-100 border border-gray-300 flex items-center justify-center overflow-hidden">
+            <div className="w-40 h-40 bg-gray-100 border border-gray-300 flex items-center justify-center overflow-hidden">
               {student.photo_url ? (
                 <img src={student.photo_url} alt="Photo" className="w-full h-full object-cover" />
               ) : (
-                <User size={64} className="text-gray-400" />
+                <User size={80} className="text-gray-400" />
               )}
             </div>
             <div className="text-center">
-              <h3 className="text-xl font-black uppercase tracking-tighter">{student.name}</h3>
-              <p className="text-[10px] text-gray-500 font-bold uppercase">{academyName}</p>
+              <h3 className="text-2xl font-black uppercase tracking-tighter">{student.name}</h3>
+              <p className="text-xs text-gray-500 font-bold uppercase">{academyName}</p>
             </div>
             <div className="w-full pt-4 border-t border-gray-100 flex flex-col items-center">
               <div className="bg-white p-1">
                 <Barcode
                   value={String(student.internal_id || student.card_pass_code)}
-                  width={1.2}
-                  height={50}
-                  fontSize={10}
+                  width={1.6}
+                  height={80}
+                  fontSize={14}
                   fontOptions="bold"
                   margin={0}
                 />
@@ -313,12 +313,12 @@ const CardPassView = () => {
           </div>
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-end">
             <div>
-              <p className="text-[7px] font-black text-gray-400 uppercase">Rank</p>
-              <p className="text-[10px] font-bold uppercase">{student.belt}</p>
+              <p className="text-[8px] font-black text-gray-400 uppercase">Rank</p>
+              <p className="text-xs font-bold uppercase">{student.belt}</p>
             </div>
             <div className="text-right">
-              <p className="text-[7px] font-black text-gray-400 uppercase">Issue Date</p>
-              <p className="text-[10px] font-bold">{new Date().toLocaleDateString('en-US')}</p>
+              <p className="text-[8px] font-black text-gray-400 uppercase">Issue Date</p>
+              <p className="text-xs font-bold">{new Date().toLocaleDateString('en-US')}</p>
             </div>
           </div>
         </Card>
