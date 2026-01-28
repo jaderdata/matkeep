@@ -1,0 +1,7 @@
+{
+  "name": "Matkeep - Gestão de Academias de Jiu-Jitsu",
+  "description": "Uma plataforma robusta para academias de jiu-jitsu focada em retenção de alunos, monitoramento de frequência e identificação de risco de evasão através de um sistema de bandeiras.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
