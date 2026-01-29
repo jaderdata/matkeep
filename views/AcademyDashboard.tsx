@@ -98,14 +98,6 @@ const AcademyDashboard: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-20">
-        <Loader2 className="animate-spin text-gray-400" size={48} />
-      </div>
-    );
-  }
-
   const totalStudents = students.length;
   const activeStudents = students.filter(s => s.status === UserStatus.ATIVO).length;
   const inactiveStudents = totalStudents - activeStudents;
@@ -160,6 +152,14 @@ const AcademyDashboard: React.FC = () => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
   }, [students, attendance]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-20">
+        <Loader2 className="animate-spin text-gray-400" size={48} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
