@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Search, Filter, MoreHorizontal, UserPlus, MessageCircle, Phone, Mail, User, Activity, Trash2, Lock, Check, Calendar } from 'lucide-react';
+import { Search, Filter, MoreHorizontal, UserPlus, MessageCircle, Phone, Mail, User, Activity, Trash2, Lock, Check, Calendar, Image } from 'lucide-react';
 import { Card, Input, Button, Badge, Select } from '../components/UI';
 import { FlagStatus, Belt, UserStatus, Student } from '../types';
 import { supabase } from '../services/supabase';
@@ -50,6 +50,10 @@ const StudentManagement: React.FC = () => {
   const [selectedStudentForHistory, setSelectedStudentForHistory] = useState<Student | null>(null);
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Photo Viewer Modal State
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [selectedStudentForPhoto, setSelectedStudentForPhoto] = useState<Student | null>(null);
 
   React.useEffect(() => {
     const initialize = async () => {
@@ -430,6 +434,19 @@ const StudentManagement: React.FC = () => {
                               </button>
                               <button
                                 className="w-full text-left px-3 py-2.5 text-xs font-bold uppercase hover:bg-gray-50 flex items-center gap-3 text-gray-700 rounded-md transition-all group"
+                                onClick={() => {
+                                  setSelectedStudentForPhoto(student);
+                                  setShowPhotoModal(true);
+                                  setActiveMenuId(null);
+                                }}
+                              >
+                                <div className="w-7 h-7 bg-purple-50 text-purple-600 flex items-center justify-center rounded transition-colors group-hover:bg-purple-600 group-hover:text-white">
+                                  <Image size={14} />
+                                </div>
+                                View Photo
+                              </button>
+                              <button
+                                className="w-full text-left px-3 py-2.5 text-xs font-bold uppercase hover:bg-gray-50 flex items-center gap-3 text-gray-700 rounded-md transition-all group"
                                 onClick={() => handleToggleStatus(student)}
                               >
                                 <div className="w-7 h-7 bg-gray-100 text-gray-600 flex items-center justify-center rounded transition-colors group-hover:bg-gray-900 group-hover:text-white">
@@ -751,6 +768,48 @@ const StudentManagement: React.FC = () => {
 
             <div className="p-4 border-t border-gray-100 bg-gray-50 shrink-0 text-center">
               <Button variant="secondary" onClick={() => setShowHistoryModal(false)} className="w-full">Close</Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Photo Viewer Modal */}
+      {showPhotoModal && selectedStudentForPhoto && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-2xl w-full shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-gray-300 flex justify-between items-center bg-gray-50">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest">Student Photo</h3>
+                <p className="text-xs text-gray-500 font-bold">{selectedStudentForPhoto.name}</p>
+              </div>
+              <button onClick={() => setShowPhotoModal(false)} className="text-gray-400 hover:text-gray-900 text-xl">&times;</button>
+            </div>
+
+            <div className="p-6 bg-gray-50 flex items-center justify-center min-h-[400px]">
+              {selectedStudentForPhoto.photo_url ? (
+                <div className="relative w-full max-w-md">
+                  <img
+                    src={selectedStudentForPhoto.photo_url}
+                    alt={`${selectedStudentForPhoto.name}'s photo`}
+                    className="w-full h-auto rounded-lg shadow-lg border-4 border-white"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect width="400" height="400" fill="%23f3f4f6"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="18" fill="%239ca3af"%3EPhoto not available%3C/text%3E%3C/svg%3E';
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="text-center space-y-4">
+                  <div className="w-32 h-32 mx-auto bg-gray-200 rounded-full flex items-center justify-center">
+                    <User size={64} className="text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 font-bold uppercase text-xs tracking-widest">No photo available</p>
+                  <p className="text-gray-400 text-xs">This student hasn't uploaded a profile photo yet.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-gray-50 text-center">
+              <Button variant="secondary" onClick={() => setShowPhotoModal(false)} className="w-full">Close</Button>
             </div>
           </Card>
         </div>

@@ -9,7 +9,7 @@ export const analyzeEvasionRisk = async (students: Student[]) => {
     model: 'gemini-3-flash-preview',
     contents: `Analise a seguinte lista de alunos de jiu-jitsu e forneça insights sobre retenção e sugestões de mensagens de contato. Alunos com mais de 7 dias sem presença estão em risco.
     
-    Alunos: ${JSON.stringify(students.map(s => ({ name: s.name, lastAttendance: s.lastAttendance, belt: s.belt })))}`,
+    Alunos: ${JSON.stringify(students.map(s => ({ name: s.name, lastAttendance: s.last_attendance, belt: s.belt })))}`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
