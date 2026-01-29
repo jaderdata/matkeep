@@ -24,13 +24,14 @@ export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { 
   );
 };
 
-export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label?: string }> = ({ label, className, ...props }) => (
+export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label?: string; helperText?: string }> = ({ label, helperText, className, ...props }) => (
   <div className="flex flex-col gap-1 w-full">
     {label && <label className="text-xs font-semibold text-gray-700 uppercase">{label}</label>}
     <input
       className={`border border-gray-300 p-2 text-sm focus:outline-none focus:border-gray-900 rounded-none ${className}`}
       {...props}
     />
+    {helperText && <p className="text-[10px] text-gray-500 italic">{helperText}</p>}
   </div>
 );
 

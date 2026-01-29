@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Input, Button, Badge } from '../components/UI';
-import { Save, History, Shield, Loader2, Camera, User, ClipboardList } from 'lucide-react';
+import { Save, History, Shield, Loader2, Camera, User, ClipboardList, Lock } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { Academy } from '../types';
 import { useRef } from 'react';
 import { formatUSPhone } from '../utils';
+import { logAuditActivity, getRecentAuditLogs, getActionDisplayName, AuditLog } from '../services/auditService';
 
 const AcademySettings: React.FC = () => {
   const [academy, setAcademy] = useState<Academy | null>(null);
   const [adminEmail, setAdminEmail] = useState<string>('');
+  const [isMaster, setIsMaster] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -28,6 +31,8 @@ const AcademySettings: React.FC = () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user?.email) {
       setAdminEmail(session.user.email);
+      // Check if user is Master
+      setIsMaster(session.user.email === 'jader_dourado@hotmail.com');
     }
   };
 
@@ -58,6 +63,9 @@ const AcademySettings: React.FC = () => {
             redFlagDays: data.red_flag_days
           }
         });
+
+        // Fetch audit logs for this academy
+        await fetchAuditLogs(data.id);
       }
     } catch (err) {
       console.error('Erro ao buscar dados da academia:', err);
@@ -66,28 +74,70 @@ const AcademySettings: React.FC = () => {
     }
   };
 
+  const fetchAuditLogs = async (academyId: string) => {
+    try {
+      const logs = await getRecentAuditLogs(academyId, 5);
+      setAuditLogs(logs);
+    } catch (err) {
+      console.error('Error fetching audit logs:', err);
+    }
+  };
+
   const handleSave = async () => {
     if (!academy) return;
     setSaving(true);
     setMessage(null);
     try {
+      // Fetch current academy data to preserve name and address if user is not Master
+      const { data: currentAcademy } = await supabase
+        .from('academies')
+        .select('name, address')
+        .eq('id', academy.id)
+        .single();
+
+      // Prepare update data
+      const updateData: any = {
+        id: academy.id,
+        contact: academy.contact,
+        logo_url: academy.logoUrl,
+        yellow_flag_days: academy.settings.yellowFlagDays,
+        red_flag_days: academy.settings.redFlagDays
+      };
+
+      // Only Master can update name and address
+      if (isMaster) {
+        updateData.name = academy.name;
+        updateData.address = academy.address;
+      } else {
+        // Preserve original values for non-Master users
+        updateData.name = currentAcademy?.name;
+        updateData.address = currentAcademy?.address;
+      }
+
       const { error } = await supabase
         .from('academies')
-        .upsert({
-          id: academy.id,
-          name: academy.name,
-          address: academy.address,
-          contact: academy.contact,
-          logo_url: academy.logoUrl,
-          yellow_flag_days: academy.settings.yellowFlagDays,
-          red_flag_days: academy.settings.redFlagDays
-        });
+        .upsert(updateData);
 
       if (error) throw error;
+
+      // Log the activity
+      await logAuditActivity(
+        academy.id,
+        'update_academy_settings',
+        'Updated academy settings',
+        {
+          fields: Object.keys(updateData).filter(k => k !== 'id'),
+          isMaster
+        }
+      );
+
       setMessage({ type: 'success', text: 'Settings saved successfully!' });
 
       // Emitir evento para atualizar o layout (opcional se houver um context)
       window.dispatchEvent(new Event('academy_updated'));
+
+      // Refresh audit logs
+      await fetchAuditLogs(academy.id);
     } catch (err) {
       console.error('Erro ao salvar:', err);
       setMessage({ type: 'error', text: 'Failed to save settings.' });
@@ -117,7 +167,18 @@ const AcademySettings: React.FC = () => {
           .eq('id', academy.id);
 
         if (error) throw error;
+
+        // Log the activity
+        await logAuditActivity(
+          academy.id,
+          'update_academy_logo',
+          'Updated academy logo'
+        );
+
         setMessage({ type: 'success', text: 'Logo updated successfully!' });
+
+        // Refresh audit logs
+        await fetchAuditLogs(academy.id);
       };
       reader.readAsDataURL(file);
     } catch (err) {
@@ -146,6 +207,18 @@ const AcademySettings: React.FC = () => {
       });
 
       if (error) throw error;
+
+      // Log the activity
+      if (academy) {
+        await logAuditActivity(
+          academy.id,
+          'change_password',
+          'Changed account password'
+        );
+
+        // Refresh audit logs
+        await fetchAuditLogs(academy.id);
+      }
 
       setMessage({ type: 'success', text: 'Password changed successfully!' });
       setShowPasswordModal(false);
@@ -195,18 +268,28 @@ const AcademySettings: React.FC = () => {
             <div className="p-4 border-b border-gray-300">
               <h3 className="text-xs font-black uppercase tracking-widest text-gray-900">General Data</h3>
             </div>
+            {!isMaster && (
+              <div className="p-3 bg-yellow-50 border-b border-yellow-200 flex items-center gap-2">
+                <Lock size={14} className="text-yellow-600" />
+                <p className="text-[10px] text-yellow-700 font-semibold uppercase">
+                  Academy Name and Address are restricted. Only Master profile can modify these fields.
+                </p>
+              </div>
+            )}
             <div className="p-6 space-y-4">
               <Input
                 label="Academy Name"
                 value={academy?.name || ''}
                 onChange={e => setAcademy(prev => prev ? { ...prev, name: e.target.value } : null)}
                 autoComplete="new-password"
+                disabled={!isMaster}
               />
               <Input
                 label="Full Address"
                 value={academy?.address || ''}
                 onChange={e => setAcademy(prev => prev ? { ...prev, address: e.target.value } : null)}
                 autoComplete="new-password"
+                disabled={!isMaster}
               />
               <div className="grid grid-cols-2 gap-4">
                 <Input
@@ -317,12 +400,33 @@ const AcademySettings: React.FC = () => {
                 <History size={14} /> Recent Audit
               </h3>
             </div>
-            <div className="p-4 space-y-3">
-              <div className="text-[10px] leading-tight">
-                <p className="font-bold text-gray-900 uppercase">Administrator</p>
-                <p className="text-gray-500 italic">No recent activity recorded.</p>
-                <p className="text-[8px] uppercase mt-1">{new Date().toLocaleDateString('en-US')}</p>
-              </div>
+            <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
+              {auditLogs.length === 0 ? (
+                <div className="text-[10px] leading-tight">
+                  <p className="font-bold text-gray-900 uppercase">Administrator</p>
+                  <p className="text-gray-500 italic">No recent activity recorded.</p>
+                  <p className="text-[8px] uppercase mt-1">{new Date().toLocaleDateString('en-US')}</p>
+                </div>
+              ) : (
+                auditLogs.map((log) => (
+                  <div key={log.id} className="text-[10px] leading-tight border-b border-gray-100 pb-2 last:border-0">
+                    <p className="font-bold text-gray-900 uppercase">{getActionDisplayName(log.action)}</p>
+                    <p className="text-gray-600">{log.description}</p>
+                    <div className="flex justify-between items-center mt-1">
+                      <p className="text-gray-400 text-[9px]">{log.user_email}</p>
+                      <p className="text-[8px] uppercase text-gray-400">
+                        {new Date(log.created_at || '').toLocaleString('en-US', {
+                          month: 'numeric',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </Card>
         </div>

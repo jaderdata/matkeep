@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase';
 import { Card, Input, Button, Checkbox } from '../components/UI';
 import { Lock, Mail, Loader2 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import { logAuditActivity } from '../services/auditService';
 
 const Login: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -53,6 +54,21 @@ const Login: React.FC = () => {
                 localStorage.setItem('admin_save_pass', password);
             } else {
                 localStorage.removeItem('admin_save_pass');
+            }
+
+            // Log login activity
+            const { data: academyData } = await supabase
+                .from('academies')
+                .select('id')
+                .eq('admin_email', email)
+                .maybeSingle();
+
+            if (academyData) {
+                await logAuditActivity(
+                    academyData.id,
+                    'login',
+                    'Administrator logged in'
+                );
             }
 
             if (data.user?.email === 'jader_dourado@hotmail.com') {
