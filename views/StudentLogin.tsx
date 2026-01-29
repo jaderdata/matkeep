@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { Loader2, User, ChevronRight } from 'lucide-react';
+import { PWAManager } from '../components/PWAManager';
 
 const StudentLogin: React.FC = () => {
     const [identifier, setIdentifier] = useState('');
@@ -19,13 +20,14 @@ const StudentLogin: React.FC = () => {
             // Nota: Para simplificar, vamos verificar se input parece email ou numero
             let query = supabase.from('students').select('id, name');
 
-            if (identifier.includes('@')) {
-                query = query.eq('email', identifier);
+            const cleanIdentifier = identifier.trim();
+
+            if (cleanIdentifier.includes('@')) {
+                // Use ilike for case-insensitive email match
+                query = query.ilike('email', cleanIdentifier);
             } else {
-                // Tenta buscar por código do cartão ou ID interno (cast para texto se for numero)
-                // Como não podemos fazer OR complexo facilmente sem RPC as vezes, vamos tentar match exato
-                // Assumindo que o usuário usa o card_pass_code principalmente
-                query = query.or(`card_pass_code.eq.${identifier},internal_id.eq.${identifier}`);
+                // Use ilike for card code or internal id
+                query = query.or(`card_pass_code.ilike.${cleanIdentifier},internal_id.ilike.${cleanIdentifier}`);
             }
 
             const { data, error } = await query.maybeSingle();
@@ -52,6 +54,7 @@ const StudentLogin: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-mesh flex items-center justify-center p-6">
+            <PWAManager academy={null} />
             <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
                 <div className="p-8 pb-0 text-center">
                     <div className="w-16 h-16 bg-gray-900 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl transform rotate-3">

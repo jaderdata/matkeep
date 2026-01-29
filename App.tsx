@@ -68,7 +68,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const SYSTEM_VERSION = 'v1.0.11';
+  const SYSTEM_VERSION = 'v1.0.12';
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -246,7 +246,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 };
 
 const StudentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const SYSTEM_VERSION = 'v1.0.11';
+  const SYSTEM_VERSION = 'v1.0.12';
   const location = useLocation();
   const [academy, setAcademy] = useState<Academy | null>(null);
 

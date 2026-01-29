@@ -16,7 +16,7 @@ export const PWAManager: React.FC<PWAManagerProps> = ({ academy }) => {
             name: name,
             short_name: shortName,
             description: "Smart System for Academy and Student Management",
-            start_url: window.location.origin + window.location.pathname + "#/",
+            start_url: window.location.href,
             display: "standalone",
             background_color: "#ffffff",
             theme_color: "#111827",

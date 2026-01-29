@@ -28,8 +28,19 @@ const AcademyRegistrationLink: React.FC = () => {
         fetchAcademy();
     }, []);
 
+    const getBaseUrl = () => {
+        // Remove trailing slash and any existing hash
+        const url = window.location.href.split('#')[0];
+        return url.endsWith('/') ? url.slice(0, -1) : url;
+    };
+
+    const baseUrl = getBaseUrl();
+
+
+
+    // New Logic: explicitly constructs the path with /#/
     const registrationUrl = academy
-        ? `${window.location.origin}${window.location.pathname}#/public/register/${academy.id}`
+        ? `${baseUrl}/#/public/register/${academy.id}`
         : '';
 
     const handleCopy = () => {
@@ -38,7 +49,7 @@ const AcademyRegistrationLink: React.FC = () => {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const loginUrl = `${window.location.origin}${window.location.pathname}#/student/login`;
+    const loginUrl = `${baseUrl}/#/student/login`;
 
     const handleCopyLogin = () => {
         navigator.clipboard.writeText(loginUrl);
