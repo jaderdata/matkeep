@@ -1,13 +1,5 @@
 @import "tailwindcss";
 
-@theme {
-  --color-primary-light: #6366f1;
-  --color-primary: #4f46e5;
-  --color-primary-dark: #3730a3;
-  --color-accent: #f59e0b;
-  --color-surface: #0f172a;
-}
-
 @layer base {
   body {
     font-family: 'Inter', sans-serif;
@@ -56,6 +48,7 @@
 
 .text-gradient {
   background: linear-gradient(to right, #4f46e5, #ec4899);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }

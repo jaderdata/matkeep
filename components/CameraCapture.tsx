@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useCallback } from 'react';
-import { Camera, RefreshCw, Check, X } from 'lucide-react';
+import { Camera, RefreshCw, Check, X, Upload } from 'lucide-react';
 import { Button } from './UI';
 
 interface CameraCaptureProps {
@@ -12,6 +12,7 @@ interface CameraCaptureProps {
 export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, initialImage }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [capturedImage, setCapturedImage] = useState<string | null>(initialImage || null);
     const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -58,6 +59,18 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose
         }
     };
 
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setCapturedImage(reader.result as string);
+                stopCamera();
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     const confirmPhoto = () => {
         if (capturedImage) {
             onCapture(capturedImage);
@@ -67,14 +80,14 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose
 
     const retakePhoto = () => {
         setCapturedImage(null);
-        startCamera();
+        setIsCameraOpen(false);
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center p-4">
-            <div className="w-full max-w-md bg-white p-2">
-                <div className="relative aspect-square bg-gray-900 overflow-hidden mb-4">
-                    {!capturedImage && (
+        <div className="fixed inset-0 bg-black/90 z-[100] flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md bg-white rounded-[2.5rem] p-6 shadow-2xl relative">
+                <div className="relative aspect-square bg-gray-900 rounded-[2rem] overflow-hidden mb-6 shadow-inner">
+                    {!capturedImage && isCameraOpen && (
                         <video
                             ref={videoRef}
                             autoPlay
@@ -85,48 +98,83 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose
                     {capturedImage && (
                         <img
                             src={capturedImage}
-                            alt="Captura"
+                            alt="Capture"
                             className="w-full h-full object-cover"
                         />
                     )}
 
                     {!isCameraOpen && !capturedImage && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <Button onClick={startCamera} className="flex items-center gap-2">
-                                <Camera size={20} />
-                                Open Camera
-                            </Button>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center">
+                            <div className="h-20 w-20 bg-gray-800 rounded-3xl flex items-center justify-center text-gray-500 mb-2">
+                                <Camera size={40} />
+                            </div>
+                            <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">Awaiting Source Connection</p>
                         </div>
                     )}
                 </div>
 
                 <canvas ref={canvasRef} className="hidden" />
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                />
 
-                <div className="flex justify-center gap-4">
+                <div className="flex flex-col gap-3">
+                    {!capturedImage && !isCameraOpen && (
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={startCamera}
+                                className="h-16 rounded-2xl bg-gray-900 text-white font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-800 transition-all active:scale-95"
+                            >
+                                <Camera size={20} />
+                                Camera
+                            </button>
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="h-16 rounded-2xl bg-indigo-500 text-white font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all active:scale-95 shadow-lg shadow-indigo-200"
+                            >
+                                <Upload size={20} />
+                                Upload
+                            </button>
+                        </div>
+                    )}
+
                     {!capturedImage && isCameraOpen && (
-                        <Button onClick={takePhoto} className="flex-1 py-4 flex items-center justify-center gap-2">
+                        <button
+                            onClick={takePhoto}
+                            className="h-16 rounded-2xl bg-gray-900 text-white font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-800 transition-all active:scale-95"
+                        >
                             <Camera size={20} />
-                            Take Photo
-                        </Button>
+                            Snap Photo
+                        </button>
                     )}
 
                     {capturedImage && (
-                        <>
-                            <Button onClick={retakePhoto} variant="secondary" className="flex-1 py-4 flex items-center justify-center gap-2">
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={retakePhoto}
+                                className="h-16 rounded-2xl bg-gray-100 text-gray-900 font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-200 transition-all active:scale-95"
+                            >
                                 <RefreshCw size={20} />
-                                Retake
-                            </Button>
-                            <Button onClick={confirmPhoto} className="flex-1 py-4 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700">
+                                Reset
+                            </button>
+                            <button
+                                onClick={confirmPhoto}
+                                className="h-16 rounded-2xl bg-green-500 text-white font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-green-600 transition-all active:scale-95 shadow-lg shadow-green-200"
+                            >
                                 <Check size={20} />
                                 Confirm
-                            </Button>
-                        </>
+                            </button>
+                        </div>
                     )}
                 </div>
 
                 <button
                     onClick={() => { stopCamera(); onClose(); }}
-                    className="absolute top-4 right-4 text-white hover:text-gray-300"
+                    className="absolute -top-12 right-0 text-white/50 hover:text-white transition-colors"
                 >
                     <X size={32} />
                 </button>
@@ -134,3 +182,4 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose
         </div>
     );
 };
+

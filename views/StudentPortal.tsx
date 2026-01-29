@@ -2,7 +2,7 @@
 import React from 'react';
 import { Routes, Route, Link, Navigate } from 'react-router-dom';
 import { Card, Badge, Button } from '../components/UI';
-import { Download, User, Loader2, ChevronRight, Flame, GraduationCap, LogOut, LayoutDashboard, CreditCard, Activity, Calendar } from 'lucide-react';
+import { Download, User, Loader2, ChevronRight, Flame, GraduationCap, LogOut, LayoutDashboard, CreditCard, Activity, Calendar, Camera } from 'lucide-react';
 import { Student } from '../types';
 import { supabase } from '../services/supabase';
 import { CameraCapture } from '../components/CameraCapture';
@@ -314,27 +314,44 @@ const CardPassView = () => {
     if (!cardRef.current || downloading) return;
     setDownloading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 300));
       const canvas = await html2canvas(cardRef.current, {
-        scale: 4,
+        scale: 3,
         useCORS: true,
+        allowTaint: false,
         backgroundColor: '#0f172a',
         logging: false,
         onclone: (clonedDoc) => {
           const el = clonedDoc.querySelector('[data-card-container]') as HTMLElement;
           if (el) {
-            el.style.padding = '40px';
-            el.style.background = '#0f172a';
+            el.style.width = '400px';
+            el.style.height = '620px'; // Updated to match new UI height
+            el.style.transform = 'none';
+            el.style.margin = '0';
+
+            // Adjust internal spacing specifically for the capture to prevent cutting
+            const infoBottom = el.querySelector('[data-info-bottom]') as HTMLElement;
+            if (infoBottom) {
+              infoBottom.style.marginTop = '-20px';
+              infoBottom.style.position = 'relative';
+              infoBottom.style.zIndex = '20';
+            }
           }
         }
       });
+      const dataUrl = canvas.toDataURL('image/png', 1.0);
       const link = document.createElement('a');
-      link.download = `Matkeep-Pass-${student?.name?.replace(/\s+/g, '-')}.png`;
-      link.href = canvas.toDataURL('image/png', 1.0);
+      link.download = `Matkeep-Pass-${student?.name?.replace(/\s+/g, '-') || 'Student'}.png`;
+      link.href = dataUrl;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch (err) { console.error('Error:', err); } finally { setDownloading(false); }
+    } catch (err: any) {
+      console.error('Error:', err);
+      alert(`Error generating image: ${err.message || 'Check connection or image permissions'}`);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (loading) return <div className="p-20 flex justify-center min-h-[60vh]"><Loader2 className="animate-spin text-primary" size={48} /></div>;
@@ -354,74 +371,82 @@ const CardPassView = () => {
     <div className="flex flex-col items-center gap-10 py-4 w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
       <div className="text-center">
         <h2 className="text-xs font-black uppercase tracking-[0.5em] text-gray-400 mb-2">Identification Node</h2>
-        <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Active Authorization</p>
+        <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Digital Authentication System</p>
       </div>
 
-      <div className="w-full flex justify-center perspective-[1000px]">
-        {/* The Card Container */}
-        <div ref={cardRef} data-card-container className="bg-transparent p-0 w-full max-w-[400px]">
-          <div className="relative aspect-[1.6/1] w-full bg-gray-900 rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/5 ring-1 ring-white/10">
-            {/* Background elements */}
-            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/30 blur-3xl" />
-            <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-pink-600/20 blur-3xl opacity-50" />
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-5" />
+      <div className="w-full flex justify-center py-4 px-4 overflow-x-auto">
+        {/* The Card Container - Redesigned Vertical ID */}
+        <div ref={cardRef} data-card-container style={{ width: '400px', height: '620px', padding: '0', margin: '0', flexShrink: 0 }}>
+          <div className="relative w-full h-full" style={{ backgroundColor: '#0f172a', borderRadius: '3rem', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid rgba(255, 255, 255, 0.15)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
 
-            <div className="relative h-full flex flex-col p-6 z-10">
-              {/* Card Header */}
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 bg-white flex items-center justify-center text-gray-900 rounded-lg font-black italic shadow-lg shadow-white/10 text-xs">M</div>
-                  <span className="font-black text-[10px] text-white tracking-widest italic pt-0.5">MATKEEP</span>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <div className="px-2 py-0.5 bg-white/5 backdrop-blur-md rounded-full border border-white/10">
-                    <span className="text-[7px] font-black uppercase tracking-widest text-primary">Premium Student</span>
+            {/* Design Elements */}
+            <div className="absolute top-0 left-0 right-0" style={{ height: '14rem', background: 'linear-gradient(to bottom, rgba(79, 70, 229, 0.2), transparent)' }} />
+            <div className="absolute rounded-full" style={{ right: '-6rem', top: '-6rem', height: '18rem', width: '18rem', backgroundColor: 'rgba(79, 70, 229, 0.2)' }} />
+            <div className="absolute rounded-full" style={{ left: '-5rem', bottom: '-5rem', height: '18rem', width: '18rem', backgroundColor: 'rgba(236, 72, 153, 0.1)' }} />
+
+            {/* Header Area Removed */}
+            <div className="relative z-10" style={{ paddingTop: '3rem', paddingLeft: '2.5rem', paddingRight: '2.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '3rem' }}>
+            </div>
+
+            {/* Photo Section */}
+            <div className="relative z-10" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '1.5rem', paddingLeft: '2.5rem', paddingRight: '2.5rem' }}>
+              <div style={{ height: '11.5rem', width: '11.5rem', borderRadius: '9999px', overflow: 'hidden', border: '6px solid rgba(255, 255, 255, 0.08)', backgroundColor: '#1e293b', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)' }}>
+                {student.photo_url ? (
+                  <img
+                    src={student.photo_url.startsWith('data:') ? student.photo_url : `${student.photo_url}${student.photo_url.includes('?') ? '&' : '?'}t=${new Date().getTime()}`}
+                    alt="Pass"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    crossOrigin="anonymous"
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '4rem', color: '#ffffff' }}>
+                    {student.name.charAt(0)}
                   </div>
-                  <span className="text-[9px] font-mono font-black text-white/40 tracking-widest">#{student.internal_id || student.card_pass_code || '000000'}</span>
-                </div>
+                )}
+              </div>
+            </div>
+
+            {/* Info Section */}
+            <div className="relative z-20" style={{ marginTop: '1.5rem', paddingLeft: '2rem', paddingRight: '2rem', textAlign: 'center' }}>
+              <h3 style={{ fontSize: '2.4rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.01em', lineHeight: '1', color: '#ffffff', marginBottom: '0.4rem' }}>
+                {student.name}
+              </h3>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.2rem' }}>
+                <p style={{ fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.65em', fontStyle: 'italic', color: '#818cf8', opacity: 0.9 }}>
+                  {student.nickname || 'Student'}
+                </p>
               </div>
 
-              {/* Card Content Row */}
-              <div className="flex gap-5 items-center mb-4">
-                <div className="h-20 w-20 rounded-xl overflow-hidden border-2 border-primary/30 bg-gray-800 shadow-inner shrink-0 text-white">
-                  {student.photo_url ? (
-                    <img src={student.photo_url} alt="Pass" className="w-full h-full object-cover" crossOrigin="anonymous" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center font-black text-xl uppercase">
-                      {student.name.charAt(0)}
-                    </div>
-                  )}
+              <div data-info-bottom style={{ display: 'flex', justifyContent: 'center', gap: '3rem', marginBottom: '1rem' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '0.4rem' }}>ID Number</p>
+                  <p style={{ fontSize: '13px', fontFamily: 'monospace', fontWeight: 900, color: '#ffffff' }}>#{student.internal_id || '000000'}</p>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-xl font-black uppercase tracking-tighter text-white truncate leading-none mb-1">{student.name}</h3>
-                  <p className="text-[9px] font-black text-primary uppercase tracking-widest italic">{student.nickname || 'Student'}</p>
-                  <p className="text-[7px] font-bold text-gray-500 uppercase tracking-widest mt-1.5">{academyName}</p>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '0.4rem' }}>Affiliation</p>
+                  <p style={{ fontSize: '11px', fontWeight: 900, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '-0.01em', lineHeight: '1.2' }}>{academyName}</p>
                 </div>
               </div>
+            </div>
 
-              {/* Barcode Section */}
-              <div className="bg-white rounded-xl p-4 mt-auto flex flex-col items-center gap-2 shadow-xl ring-2 ring-black/50">
-                <div className="w-full flex justify-center">
+            {/* Barcode Footer Section */}
+            <div className="relative z-10" style={{ marginTop: 'auto', paddingLeft: '2.2rem', paddingRight: '2.2rem', paddingBottom: '3rem' }}>
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '2.2rem', padding: '2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.7)' }}>
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'center', transform: 'scaleX(1.1)' }}>
                   <Barcode
                     value={String(student.internal_id || student.card_pass_code || '000000')}
-                    width={2.5}
-                    height={80}
+                    width={2.8}
+                    height={100}
                     displayValue={false}
                     margin={0}
                     background="#ffffff"
                   />
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[7px] font-black text-gray-400 uppercase tracking-[0.3em]">ID Node</span>
-                  <span className="text-[10px] font-black text-gray-900 tracking-[0.4em] font-mono">
-                    {student.internal_id || student.card_pass_code || '000000'}
-                  </span>
-                </div>
               </div>
             </div>
 
-            {/* Gloss Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-transparent pointer-events-none" />
+            {/* Overlay Gradient for Texture */}
+            <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at top right, rgba(255, 255, 255, 0.12) 0%, transparent 70%)', opacity: 0.25 }} />
           </div>
         </div>
       </div>
@@ -430,13 +455,13 @@ const CardPassView = () => {
         <button
           onClick={downloadCard}
           disabled={downloading}
-          className="group h-16 w-full rounded-[1.5rem] bg-gray-900 text-white font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl transition-all active:scale-95 disabled:opacity-50 ring-1 ring-white/10"
+          className="group h-16 w-full rounded-[1.5rem] bg-gray-900 text-white font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl transition-all active:scale-95 disabled:opacity-50" style={{ boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.1)' }}
         >
           {downloading ? (
             <Loader2 size={24} className="animate-spin" />
           ) : (
             <>
-              <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-white/5 text-primary group-hover:scale-110 transition-transform">
+              <div className="h-10 w-10 flex items-center justify-center rounded-xl group-hover:scale-110 transition-transform" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#6366f1' }}>
                 <Download size={20} />
               </div>
               Save Digital Pass
@@ -460,6 +485,17 @@ const ProfileView = () => {
   const [saving, setSaving] = React.useState(false);
   const [editForm, setEditForm] = React.useState({ phone: '', birth_date: '' });
 
+  const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return '---';
+    try {
+      const [year, month, day] = dateStr.split('-');
+      if (!year || !month || !day) return dateStr;
+      return `${month}/${day}/${year}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
   React.useEffect(() => { fetchStudent(); }, []);
 
   const fetchStudent = async () => {
@@ -469,7 +505,10 @@ const ProfileView = () => {
       const { data, error } = await supabase.from('students').select('*').eq('id', id).single();
       if (error) throw error;
       setStudent(data);
-      setEditForm({ phone: data.phone || '', birth_date: data.birth_date || '' });
+      setEditForm({
+        phone: data.phone || '',
+        birth_date: data.birth_date || ''
+      });
     } catch (err) { console.error('Error:', err); } finally { setLoading(false); }
   };
 
@@ -492,7 +531,10 @@ const ProfileView = () => {
     if (!student) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from('students').update({ phone: editForm.phone, birth_date: editForm.birth_date }).eq('id', student.id);
+      const { error } = await supabase.from('students').update({
+        phone: editForm.phone,
+        birth_date: editForm.birth_date
+      }).eq('id', student.id);
       if (error) throw error;
       setStudent({ ...student, ...editForm });
       setIsEditing(false);
@@ -513,80 +555,109 @@ const ProfileView = () => {
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
+    <div className="max-w-xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-12">
       <div className="flex flex-col items-center gap-6">
         <div
-          className="relative h-40 w-40 cursor-pointer overflow-hidden rounded-[2.5rem] bg-gray-900 shadow-2xl transition-transform active:scale-95 group"
+          className="relative h-40 w-40 cursor-pointer overflow-hidden rounded-[2.5rem] bg-gray-900 shadow-2xl transition-all active:scale-95 group"
           onClick={() => setShowCamera(true)}
         >
           {student.photo_url ? (
-            <img src={student.photo_url} alt="Profile" className="h-full w-full object-cover transition-opacity group-hover:opacity-50" />
+            <img src={student.photo_url} alt="Profile" className={`h-full w-full object-cover transition-all ${isEditing ? 'opacity-40 scale-110' : 'group-hover:opacity-60'}`} />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-5xl font-black text-white italic">
               {student.name.charAt(0)}
             </div>
           )}
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
-            <div className="h-12 w-12 bg-white rounded-2xl flex items-center justify-center text-gray-900 shadow-xl">
-              <Activity className={updatingPhoto ? "animate-spin" : ""} size={24} />
+
+          <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all bg-black/40 ${isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+            <div className="h-12 w-12 bg-white rounded-2xl flex items-center justify-center text-gray-900 shadow-xl mb-2">
+              {updatingPhoto ? <Loader2 className="animate-spin" size={24} /> : <Camera size={24} />}
             </div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-white">Change Photo</span>
           </div>
         </div>
         <div className="text-center">
           <h2 className="text-3xl font-black uppercase tracking-tighter text-gray-900 leading-none mb-1">{student.name}</h2>
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Node Identifier: {student.internal_id || '---'}</p>
+          <div className="flex items-center justify-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Node Identifier: {student.internal_id || '---'}</p>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
         {[
-          { label: 'Mobile Contact', value: student.phone, key: 'phone', type: 'text' },
-          { label: 'Date of Birth', value: student.birth_date ? new Date(student.birth_date).toLocaleDateString() : '---', key: 'birth_date', type: 'date' },
+          { label: 'Mobile Contact', value: student.phone, key: 'phone', type: 'text', placeholder: '(00) 00000-0000' },
+          { label: 'Date of Birth', value: formatDisplayDate(student.birth_date), key: 'birth_date', type: 'date' },
         ].map((field, i) => (
-          <div key={i} className="glass rounded-[1.5rem] p-6 flex flex-col gap-1 border-gray-100">
+          <div key={i} className={`glass rounded-[1.8rem] p-6 flex flex-col gap-1 transition-all ${isEditing ? 'ring-2 ring-primary/20 bg-white shadow-lg' : 'border-gray-100'}`}>
             <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{field.label}</span>
             {isEditing ? (
               <input
                 type={field.type}
-                className="bg-transparent border-none p-0 text-lg font-black text-gray-900 outline-none w-full"
-                value={field.key === 'phone' ? editForm.phone : editForm.birth_date}
+                placeholder={field.placeholder}
+                className="bg-transparent border-none p-0 text-lg font-black text-gray-900 outline-none w-full placeholder:text-gray-300"
+                value={(editForm as any)[field.key]}
                 onChange={e => setEditForm({ ...editForm, [field.key]: e.target.value })}
               />
             ) : (
-              <p className="text-lg font-black text-gray-900 italic tracking-tight">{field.value || 'Not set'}</p>
+              <p className="text-lg font-black text-gray-900 italic tracking-tight">{field.value || '---'}</p>
             )}
           </div>
         ))}
 
-        <div className="glass rounded-[1.5rem] p-6 flex items-center justify-between border-gray-100 overflow-hidden relative">
+        <div className="glass rounded-[1.8rem] p-6 flex items-center justify-between border-gray-100 overflow-hidden relative bg-gradient-to-br from-white to-gray-50/50">
           <div className="flex flex-col gap-1">
             <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Current Rank</span>
             <p className="text-lg font-black text-gray-900 italic tracking-tight uppercase">{student.belt} • {student.degrees}º Degree</p>
           </div>
-          <div className="h-12 w-12 rounded-2xl border-4 border-gray-900 flex items-center justify-center" style={{ backgroundColor: student.belt?.toLowerCase() }}>
-            <GraduationCap size={20} className="text-white" />
+          <div className="h-14 w-14 rounded-[1.2rem] border-4 border-gray-900 flex items-center justify-center shadow-lg" style={{ backgroundColor: student.belt?.toLowerCase() || '#1f2937' }}>
+            <GraduationCap size={24} className="text-white" />
           </div>
         </div>
       </div>
 
       <div className="space-y-4 pt-4">
         {isEditing ? (
-          <button onClick={handleSaveProfile} disabled={saving} className="h-16 w-full rounded-[1.2rem] bg-gray-900 text-white font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2">
-            {saving ? <Loader2 className="animate-spin" size={20} /> : 'Finalize Sync'}
-          </button>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => setIsEditing(false)}
+              className="h-16 w-full rounded-[1.2rem] bg-gray-100 text-gray-500 font-black uppercase tracking-widest hover:bg-gray-200 transition-all flex items-center justify-center"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveProfile}
+              disabled={saving}
+              className="h-16 w-full rounded-[1.2rem] bg-gray-900 text-white font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="animate-spin" size={20} /> : 'Finalize Sync'}
+            </button>
+          </div>
         ) : (
-          <button onClick={() => setIsEditing(true)} className="h-16 w-full rounded-[1.2rem] glass-dark text-white font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2">
+          <button
+            onClick={() => setIsEditing(true)}
+            className="h-16 w-full rounded-[1.2rem] bg-gray-900 text-white font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 transition-all hover:bg-black active:scale-95"
+          >
+            <Activity size={20} className="text-primary" />
             Edit Profile Node
           </button>
         )}
 
-        <button onClick={handleLogout} className="h-14 w-full text-red-500 font-black text-[10px] uppercase tracking-[0.4em] hover:bg-red-50 rounded-2xl transition-all flex items-center justify-center gap-3">
+        <button
+          onClick={handleLogout}
+          className="h-14 w-full text-red-500 font-black text-[10px] uppercase tracking-[0.4em] hover:bg-red-50 rounded-[1.2rem] transition-all flex items-center justify-center gap-3 mt-4"
+        >
           <LogOut size={16} /> Close Authentication Session
         </button>
       </div>
 
       {showCamera && (
-        <CameraCapture onCapture={handleUpdatePhoto} onClose={() => setShowCamera(false)} initialImage={student.photo_url} />
+        <CameraCapture
+          onCapture={handleUpdatePhoto}
+          onClose={() => setShowCamera(false)}
+          initialImage={student.photo_url}
+        />
       )}
     </div>
   );
