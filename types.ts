@@ -63,6 +63,7 @@ export interface Academy {
   address: string;
   contact: string;
   logoUrl?: string;
+  slug?: string;
   subscription_plan?: 'trial' | 'definitive';
   trial_start_date?: string;
   trial_end_date?: string;

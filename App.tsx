@@ -109,6 +109,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             address: data.address,
             contact: data.contact,
             logoUrl: data.logo_url,
+            slug: data.slug,
             subscription_plan: data.subscription_plan,
             trial_start_date: data.trial_start_date,
             trial_end_date: data.trial_end_date,
@@ -234,7 +235,13 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             )}
           </div>
           <div className="ml-auto flex items-center gap-4">
-            <Link to="/public/register" className="text-xs font-bold text-blue-600 hover:underline">Public Registration Link</Link>
+            <Link
+              target="_blank"
+              to={`/public/register/${academy?.slug || academy?.id || ''}`}
+              className="text-xs font-bold text-blue-600 hover:underline"
+            >
+              Public Registration Link
+            </Link>
           </div>
         </header>
         <TrialBanner academy={academy} />

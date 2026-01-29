@@ -13,6 +13,22 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 </head>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function (registrations) {
+      for (let registration of registrations) {
+        registration.unregister().then(function (boolean) {
+          console.log('Service Worker unregistered: ', boolean);
+          // If a SW was found and unregistered, reload the page once to clear the control
+          if (boolean && !sessionStorage.getItem('sw_cleared')) {
+            sessionStorage.setItem('sw_cleared', 'true');
+            window.location.reload();
+          }
+        });
+      }
+    });
+  }
+</script>
 
 <body>
   <div id="root"></div>

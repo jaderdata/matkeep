@@ -61,7 +61,7 @@ const PublicRegistration: React.FC = () => {
       let query = supabase.from('academies').select('*');
 
       if (urlAcademyId) {
-        query = query.eq('id', urlAcademyId);
+        query = query.or(`id.eq.${urlAcademyId},slug.eq.${urlAcademyId}`);
       } else {
         query = query.limit(1);
       }

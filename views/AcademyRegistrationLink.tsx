@@ -6,7 +6,7 @@ import { supabase } from '../services/supabase';
 import QRCode from 'react-qr-code';
 
 const AcademyRegistrationLink: React.FC = () => {
-    const [academy, setAcademy] = useState<{ id: string, name: string } | null>(null);
+    const [academy, setAcademy] = useState<{ id: string, name: string, slug?: string } | null>(null);
     const [copied, setCopied] = useState(false);
     const [loading, setLoading] = useState(true);
 
@@ -16,7 +16,7 @@ const AcademyRegistrationLink: React.FC = () => {
             if (session?.user?.email) {
                 const { data } = await supabase
                     .from('academies')
-                    .select('id, name')
+                    .select('id, name, slug')
                     .eq('admin_email', session.user.email)
                     .maybeSingle();
 
@@ -39,7 +39,7 @@ const AcademyRegistrationLink: React.FC = () => {
 
     // New Logic: explicitly constructs the path with /#/
     const registrationUrl = academy
-        ? `${baseUrl}/#/public/register/${academy.id}`
+        ? `${baseUrl}/#/public/register/${academy.slug || academy.id}`
         : '';
 
     const handleCopy = () => {

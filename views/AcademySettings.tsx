@@ -58,6 +58,7 @@ const AcademySettings: React.FC = () => {
           address: data.address,
           contact: data.contact,
           logoUrl: data.logo_url,
+          slug: data.slug,
           settings: {
             yellowFlagDays: data.yellow_flag_days,
             redFlagDays: data.red_flag_days
@@ -100,6 +101,7 @@ const AcademySettings: React.FC = () => {
         id: academy.id,
         contact: academy.contact,
         logo_url: academy.logoUrl,
+        slug: academy.slug || null,
         yellow_flag_days: academy.settings.yellowFlagDays,
         red_flag_days: academy.settings.redFlagDays
       };
@@ -304,6 +306,21 @@ const AcademySettings: React.FC = () => {
                   value={adminEmail}
                   disabled
                   helperText="This email is used for login and cannot be visually changed here."
+                />
+              </div>
+              <div className="mt-4">
+                <Input
+                  label="Custom Registration Link (Slug)"
+                  value={academy?.slug || ''}
+                  onChange={e => {
+                    // Only allow alphanumeric and hyphens
+                    const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                    setAcademy(prev => prev ? { ...prev, slug: val } : null);
+                  }}
+                  placeholder="e.g. my-academy-name"
+                  helperText={academy?.slug
+                    ? `Your link: https://matkeep.vercel.app/#/public/register/${academy.slug}`
+                    : 'Create a friendly URL for your registration link (optional).'}
                 />
               </div>
               <div className="flex flex-col gap-1">
