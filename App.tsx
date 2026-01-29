@@ -68,7 +68,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const SYSTEM_VERSION = 'v1.0.12';
+  const SYSTEM_VERSION = 'v1.0.13';
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -246,7 +246,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 };
 
 const StudentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const SYSTEM_VERSION = 'v1.0.12';
+  const SYSTEM_VERSION = 'v1.0.13';
   const location = useLocation();
   const [academy, setAcademy] = useState<Academy | null>(null);
 
@@ -280,7 +280,7 @@ const StudentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   return (
     <div className="min-h-screen bg-mesh flex flex-col pb-24 md:pb-0">
-      <PWAManager academy={academy} />
+      <PWAManager academy={academy || undefined} />
       {/* Translucent Header */}
       <header className="glass sticky top-0 z-[60] px-6 py-4 md:px-12 print:hidden backdrop-blur-md">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
