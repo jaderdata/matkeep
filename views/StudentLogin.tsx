@@ -35,7 +35,7 @@ const StudentLogin: React.FC = () => {
             if (error) throw error;
 
             if (!data) {
-                setError('Aluno não encontrado. Verifique seus dados.');
+                setError('Student not found. Please check your credentials.');
                 setLoading(false);
                 return;
             }
@@ -46,7 +46,7 @@ const StudentLogin: React.FC = () => {
 
         } catch (err: any) {
             console.error('Erro no login de aluno:', err);
-            setError('Erro ao conectar. Tente novamente.');
+            setError('Connection error. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -61,10 +61,10 @@ const StudentLogin: React.FC = () => {
                         <span className="text-white font-black text-2xl italic">M</span>
                     </div>
                     <h1 className="text-2xl font-black uppercase tracking-tighter text-gray-900 mb-2">
-                        Portal do Aluno
+                        Student Portal
                     </h1>
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-8">
-                        Acesso Exclusivo
+                        Exclusive Access
                     </p>
                 </div>
 
@@ -78,7 +78,7 @@ const StudentLogin: React.FC = () => {
 
                         <div className="space-y-2">
                             <label htmlFor="student-identifier" className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">
-                                Email ou Código de Acesso
+                                Email or Access Code
                             </label>
                             <div className="relative group">
                                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
@@ -90,7 +90,7 @@ const StudentLogin: React.FC = () => {
                                     type="text"
                                     value={identifier}
                                     onChange={(e) => setIdentifier(e.target.value)}
-                                    placeholder="Digite seu email ou ID..."
+                                    placeholder="Enter your email or ID..."
                                     className="w-full h-14 pl-12 pr-4 bg-gray-50 border-2 border-transparent focus:border-gray-900 focus:bg-white rounded-2xl outline-none font-bold text-gray-900 placeholder:text-gray-300 transition-all text-sm"
                                     required
                                     autoComplete="username"
@@ -111,7 +111,7 @@ const StudentLogin: React.FC = () => {
                                 <Loader2 className="animate-spin" size={24} />
                             ) : (
                                 <>
-                                    Entrar
+                                    Enter
                                     <ChevronRight size={20} />
                                 </>
                             )}
@@ -121,7 +121,7 @@ const StudentLogin: React.FC = () => {
 
                 <div className="p-6 bg-gray-50 border-t border-gray-100 text-center">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                        Não tem acesso? Procure sua academia.
+                        Don't have access? Contact your academy.
                     </p>
                 </div>
             </div>

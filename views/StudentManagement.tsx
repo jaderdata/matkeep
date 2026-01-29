@@ -105,14 +105,29 @@ const StudentManagement: React.FC = () => {
           academy_id: academyId,
           status: UserStatus.ATIVO,
           flag: FlagStatus.VERDE,
-          card_pass_code: 'MK-' + Math.floor(Math.random() * 1000).toString().padStart(3, '0')
+          card_pass_code: 'PENDING'
         }])
         .select()
         .single();
 
       if (error) throw error;
 
-      setStudents(prev => [data, ...prev]);
+      // Generate Sequential Code based on DB internal_id
+      // Format: 10000000 + internal_id (e.g., 10000001, 10000002)
+      const seqCode = data.internal_id
+        ? (10000000 + Number(data.internal_id)).toString()
+        : Math.floor(10000000 + Math.random() * 9000000).toString();
+
+      const { data: finalData, error: updateError } = await supabase
+        .from('students')
+        .update({ card_pass_code: seqCode })
+        .eq('id', data.id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      setStudents(prev => [finalData, ...prev]);
       setShowAddModal(false);
       setNewStudent({
         name: '',
@@ -160,11 +175,20 @@ const StudentManagement: React.FC = () => {
           phone: editForm.phone,
           birth_date: editForm.birth_date,
           belt: editForm.belt,
-          degrees: editForm.degrees
+          degrees: editForm.degrees,
+          // card_pass_code: editForm.card_pass_code // Prevent editing if requested, or keep it?
+          // User said "I don't want student to edit". 
+          // Assuming we keep it editable by admin but generated automatically. 
+          // User request "system registers sequential id".
+          // I will keep it in the update payload for valid admin overwrites, but make the UI read-only by default or implied.
+          // Re-reading: "vincule ao aluno e salve no banco" -> automatic.
+          // The request implies the SYSTEM does it.
+          // I'll leave the update here just in case, but rely on the insert logic for the sequence.
         })
         .eq('id', selectedStudent.id)
         .select()
         .single();
+
 
       if (error) throw error;
 
@@ -182,6 +206,17 @@ const StudentManagement: React.FC = () => {
     if (!confirm('Are you sure you want to delete this student? This action cannot be undone.')) return;
 
     try {
+      // 1. Delete associated attendance records (Fix for Foreign Key Constraint)
+      const { error: attendanceError } = await supabase
+        .from('attendance')
+        .delete()
+        .eq('student_id', studentId);
+
+      if (attendanceError) {
+        console.warn('Error deleting attendance records:', attendanceError);
+      }
+
+      // 2. Delete the student
       const { error } = await supabase
         .from('students')
         .delete()
@@ -612,6 +647,17 @@ const StudentManagement: React.FC = () => {
                       {editForm.internal_id || '---'}
                     </span>
                   </div>
+
+                  <div className="w-full">
+                    <Input
+                      label="Card Pass / Barcode (Auto-Generated)"
+                      value={editForm.card_pass_code}
+                      onChange={e => setEditForm({ ...editForm, card_pass_code: e.target.value })}
+                      placeholder="Scan or type code..."
+                      disabled
+                    />
+                  </div>
+
                   <div className="bg-white p-4 rounded shadow-sm">
                     <Barcode
                       value={editForm.card_pass_code || '000000'}
@@ -620,7 +666,6 @@ const StudentManagement: React.FC = () => {
                       fontSize={12}
                     />
                   </div>
-                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Barcode linked to student</p>
                 </div>
               </div>
               <div className="flex gap-2 pt-4 border-t border-gray-100">

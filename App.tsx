@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { LayoutDashboard, Users, FileText, Settings, LogOut, ChevronRight, User, GraduationCap, CreditCard, Activity, Loader2, UserPlus, Building2 } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, Settings, LogOut, ChevronRight, User, GraduationCap, CreditCard, Activity, Loader2, UserPlus, Building2, QrCode } from 'lucide-react';
 import AcademyDashboard from './views/AcademyDashboard';
 import StudentManagement from './views/StudentManagement';
 import AcademySettings from './views/AcademySettings';
@@ -167,6 +167,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <SidebarLink to="/academy/dashboard" icon={<LayoutDashboard size={20} />} label={isCollapsed ? "" : "Dashboard"} />
           <SidebarLink to="/academy/students" icon={<Users size={20} />} label={isCollapsed ? "" : "Students"} />
           <SidebarLink to="/academy/registration-link" icon={<UserPlus size={20} />} label={isCollapsed ? "" : "Student Registration"} />
+          <SidebarLink to="/check-in" icon={<QrCode size={20} />} label={isCollapsed ? "" : "Check-In Kiosk"} />
           <SidebarLink to="/academy/reports" icon={<FileText size={20} />} label={isCollapsed ? "" : "Reports"} />
           <SidebarLink to="/academy/settings" icon={<Settings size={20} />} label={isCollapsed ? "" : "Settings"} />
         </nav>

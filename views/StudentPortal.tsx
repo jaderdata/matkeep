@@ -153,7 +153,15 @@ const StudentDashboard = () => {
             <div className="absolute inset-0 animate-glow rounded-full bg-primary/20 blur-xl" />
             <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-primary/50 bg-gray-800 p-1 shadow-2xl">
               {student.photo_url ? (
-                <img src={student.photo_url} alt="Profile" className="h-full w-full rounded-full object-cover" />
+                <img
+                  src={student.photo_url.startsWith('data:') ? student.photo_url : `${student.photo_url}${student.photo_url.includes('?') ? '&' : '?'}t=${new Date().getTime()}`}
+                  alt="Profile"
+                  className="h-full w-full rounded-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = ''; // Clear broken src
+                    (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="flex items-center justify-center w-full h-full text-gray-500"><User size={40} /></div>';
+                  }}
+                />
               ) : (
                 <User size={40} className="text-gray-600" />
               )}
@@ -397,6 +405,10 @@ const CardPassView = () => {
                     alt="Pass"
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     crossOrigin="anonymous"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(student!.name) + "&background=1e293b&color=fff";
+                    }}
                   />
                 ) : (
                   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '4rem', color: '#ffffff' }}>
@@ -434,7 +446,7 @@ const CardPassView = () => {
               <div style={{ backgroundColor: '#ffffff', borderRadius: '2.2rem', padding: '2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.7)' }}>
                 <div style={{ width: '100%', display: 'flex', justifyContent: 'center', transform: 'scaleX(1.1)' }}>
                   <Barcode
-                    value={String(student.internal_id || student.card_pass_code || '000000')}
+                    value={String(student.card_pass_code || student.internal_id || '000000')}
                     width={2.8}
                     height={100}
                     displayValue={false}
@@ -522,9 +534,17 @@ const ProfileView = () => {
     setUpdatingPhoto(true);
     try {
       const { error } = await supabase.from('students').update({ photo_url: base64Photo }).eq('id', student.id);
-      if (error) throw error;
+      if (error) {
+        console.error("Database error:", error);
+        alert("Fail to sync photo to cloud. Please try a smaller file or better connection.");
+        throw error;
+      }
       setStudent({ ...student, photo_url: base64Photo });
-    } catch (err) { console.error("Error:", err); } finally { setUpdatingPhoto(false); }
+    } catch (err) {
+      console.error("Error updating photo:", err);
+    } finally {
+      setUpdatingPhoto(false);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -562,7 +582,15 @@ const ProfileView = () => {
           onClick={() => setShowCamera(true)}
         >
           {student.photo_url ? (
-            <img src={student.photo_url} alt="Profile" className={`h-full w-full object-cover transition-all ${isEditing ? 'opacity-40 scale-110' : 'group-hover:opacity-60'}`} />
+            <img
+              src={student.photo_url.startsWith('data:') ? student.photo_url : `${student.photo_url}${student.photo_url.includes('?') ? '&' : '?'}t=${new Date().getTime()}`}
+              alt="Profile"
+              className={`h-full w-full object-cover transition-all ${isEditing ? 'opacity-40 scale-110' : 'group-hover:opacity-60'}`}
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(student.name) + "&background=0f172a&color=fff";
+              }}
+            />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-5xl font-black text-white italic">
               {student.name.charAt(0)}

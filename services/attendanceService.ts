@@ -12,14 +12,31 @@ export const attendanceService = {
     async registerAttendance(code: string, excludeCooldown: boolean = false): Promise<AttendanceResult> {
         try {
             // 1. Find Student
-            const { data: student, error: studentError } = await supabase
+            // 1. Find Student
+            let student = null;
+
+            // First try strict match on card_pass_code
+            const { data: byCode, error: codeError } = await supabase
                 .from('students')
                 .select('*')
                 .eq('card_pass_code', code)
-                .single();
+                .maybeSingle();
 
-            if (studentError || !student) {
-                return { success: false, message: 'Aluno não encontrado ou código inválido.' };
+            if (byCode) {
+                student = byCode;
+            } else if (/^\d+$/.test(code)) {
+                // If not found and code is numeric, try internal_id (legacy/fallback)
+                const { data: byId, error: idError } = await supabase
+                    .from('students')
+                    .select('*')
+                    .eq('internal_id', parseInt(code))
+                    .maybeSingle(); // Use maybeSingle to avoid 406 if generic
+
+                if (byId) student = byId;
+            }
+
+            if (!student) {
+                return { success: false, message: 'Student not found or invalid code.' };
             }
 
             // 2. Check 60-minute rule
@@ -32,7 +49,7 @@ export const attendanceService = {
                     const remaining = Math.ceil(60 - diffMinutes);
                     return {
                         success: false,
-                        message: `Presença já confirmada recentemente. Aguarde ${remaining} min para registrar novamente.`,
+                        message: `Attendance already confirmed recently. Please wait ${remaining} min to register again.`,
                         student
                     };
                 }
@@ -53,21 +70,23 @@ export const attendanceService = {
             }
 
             // 4. Update Student Last Attendance
-            const { error: updateError } = await supabase
+            const { data: freshStudent, error: updateError } = await supabase
                 .from('students')
                 .update({
                     last_attendance: new Date().toISOString()
                     // In a real app we might also increment degrees or check belt progress here
                 })
-                .eq('id', student.id);
+                .eq('id', student.id)
+                .select()
+                .single();
 
             if (updateError) throw updateError;
 
-            return { success: true, message: `Presença confirmada: ${student.name}`, student };
+            return { success: true, message: `Attendance confirmed: ${freshStudent.name}`, student: freshStudent };
 
         } catch (error: any) {
             console.error('Attendance Error:', error);
-            return { success: false, message: 'Erro ao registrar presença.' };
+            return { success: false, message: 'Error registering attendance.' };
         }
     },
 
@@ -80,7 +99,7 @@ export const attendanceService = {
                 .single();
 
             if (studentError || !student) {
-                return { success: false, message: 'Aluno não encontrado.' };
+                return { success: false, message: 'Student not found.' };
             }
 
             // 60-minute rule check
@@ -93,7 +112,7 @@ export const attendanceService = {
                     const remaining = Math.ceil(60 - diffMinutes);
                     return {
                         success: false,
-                        message: `Já confirmou recentemente. Aguarde ${remaining} min para registrar novamente.`,
+                        message: `Already confirmed recently. Please wait ${remaining} min to register again.`,
                         student
                     };
                 }
@@ -109,18 +128,20 @@ export const attendanceService = {
                 });
 
             // 4. Update Student
-            const { error: updateError } = await supabase
+            const { data: freshStudent, error: updateError } = await supabase
                 .from('students')
                 .update({ last_attendance: new Date().toISOString() })
-                .eq('id', student.id);
+                .eq('id', student.id)
+                .select()
+                .single();
 
             if (updateError || insertError) throw updateError || insertError;
 
-            return { success: true, message: 'Presença manual registrada.', student };
+            return { success: true, message: 'Manual attendance registered.', student: freshStudent };
 
         } catch (err: any) {
             console.error('Detailed Manual Error:', err);
-            return { success: false, message: 'Erro ao registrar manual: ' + (err.message || 'Desconhecido') };
+            return { success: false, message: 'Error registering manual attendance: ' + (err.message || 'Unknown') };
         }
     },
     async getHistory(studentId: string): Promise<any[]> {
