@@ -412,12 +412,12 @@ const CardPassView = () => {
               </div>
 
               {/* Barcode Section */}
-              <div className="bg-white rounded-xl p-3 mt-auto flex flex-col items-center gap-1.5 shadow-xl ring-2 ring-black/50">
-                <div className="opacity-80 scale-90">
+              <div className="bg-white rounded-xl p-4 mt-auto flex flex-col items-center gap-2 shadow-xl ring-2 ring-black/50">
+                <div className="w-full flex justify-center">
                   <Barcode
                     value={String(student.internal_id || student.card_pass_code || '000000')}
-                    width={1.2}
-                    height={35}
+                    width={2.5}
+                    height={80}
                     displayValue={false}
                     margin={0}
                     background="#ffffff"
