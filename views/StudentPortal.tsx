@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route, Link, Navigate } from 'react-router-dom';
 import { Card, Badge, Button } from '../components/UI';
 import { Download, User, Loader2, ChevronRight, Flame, GraduationCap, LogOut, LayoutDashboard, CreditCard, Activity, Calendar } from 'lucide-react';
 import { Student } from '../types';
@@ -113,20 +113,8 @@ const StudentDashboard = () => {
   if (loading) return <div className="flex items-center justify-center p-20 min-h-[60vh]"><Loader2 className="animate-spin text-primary" size={48} /></div>;
 
   if (!student) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 text-center gap-6 min-h-[60vh] animate-in fade-in duration-500">
-        <div className="h-24 w-24 bg-gray-100 rounded-[2rem] flex items-center justify-center text-gray-300">
-          <User size={48} />
-        </div>
-        <div>
-          <h3 className="text-xl font-black uppercase tracking-tight text-gray-900 mb-2">Node Not Found</h3>
-          <p className="text-sm text-gray-500 max-w-[240px] mx-auto">Please identify yourself to access your training dashboard.</p>
-        </div>
-        <Link to="/public/register" className="h-14 px-8 rounded-2xl bg-gray-900 text-white font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl hover:scale-105 transition-transform active:scale-95">
-          Identify Now
-        </Link>
-      </div>
-    );
+    // Redirect to login if no student is found
+    return <Navigate to="/student/login" replace />;
   }
 
   return (
@@ -180,11 +168,11 @@ const StudentDashboard = () => {
           <span className="mb-2 text-[10px] font-black uppercase tracking-widest text-gray-400">Total Classes</span>
           <span className="text-3xl font-black text-white">{stats.totalClasses}</span>
         </div>
-        <div className="glass items-center justify-center rounded-3xl p-6 border-none bg-primary text-white shadow-xl flex flex-col">
-          <span className="mb-2 text-[10px] font-black uppercase tracking-widest text-indigo-200">Consistency</span>
+        <div className="glass items-center justify-center rounded-3xl p-6 border-none bg-white text-gray-900 shadow-xl flex flex-col">
+          <span className="mb-2 text-[10px] font-black uppercase tracking-widest text-indigo-500">Consistency</span>
           <div className="flex items-center gap-2">
-            <Flame size={24} className={streakStats.active ? "text-orange-400 animate-bounce" : "text-indigo-300 opacity-50"} />
-            <span className="text-3xl font-black">{streakStats.count}D</span>
+            <Flame size={24} className={streakStats.active ? "text-orange-500 animate-bounce" : "text-gray-300 opacity-50"} />
+            <span className="text-3xl font-black text-gray-900">{streakStats.count}D</span>
           </div>
         </div>
       </div>
@@ -487,7 +475,7 @@ const ProfileView = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('current_student_id');
-    window.location.hash = '/public/register';
+    window.location.hash = '/student/login';
   };
 
   const handleUpdatePhoto = async (base64Photo: string) => {

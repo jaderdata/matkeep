@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input } from '../components/UI';
-import { Link, Copy, Check, QrCode, ExternalLink, UserPlus, Download } from 'lucide-react';
+import { Link, Copy, Check, QrCode, ExternalLink, UserPlus, Download, LogIn } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import QRCode from 'react-qr-code';
 
 const AcademyRegistrationLink: React.FC = () => {
     const [academy, setAcademy] = useState<{ id: string, name: string } | null>(null);
     const [copied, setCopied] = useState(false);
+    const [copiedLogin, setCopiedLogin] = useState(false);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -37,6 +38,14 @@ const AcademyRegistrationLink: React.FC = () => {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    const loginUrl = `${window.location.origin}${window.location.pathname}#/student/login`;
+
+    const handleCopyLogin = () => {
+        navigator.clipboard.writeText(loginUrl);
+        setCopiedLogin(true);
+        setTimeout(() => setCopiedLogin(false), 2000);
+    };
+
     if (loading) return <div className="p-8 text-center text-gray-500">Loading...</div>;
 
     if (!academy) {
@@ -59,38 +68,73 @@ const AcademyRegistrationLink: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <Card className="p-8 flex flex-col items-center gap-6">
-                        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
-                            <UserPlus size={32} />
-                        </div>
-                        <div className="text-center">
-                            <h3 className="font-bold text-gray-900 uppercase text-xs tracking-widest mb-1">Registration Link</h3>
-                            <p className="text-gray-500 text-[10px] uppercase">Send to your new students via WhatsApp</p>
-                        </div>
-
-                        <div className="w-full space-y-3">
-                            <div className="relative group">
-                                <Input
-                                    value={registrationUrl}
-                                    readOnly
-                                    className="pr-12 text-xs font-mono bg-gray-50"
-                                />
-                                <button
-                                    onClick={handleCopy}
-                                    className="absolute right-3 top-[34px] p-2 text-gray-400 hover:text-gray-900 transition-colors"
-                                    title="Copy Link"
-                                >
-                                    {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
-                                </button>
+                    <div className="space-y-8">
+                        <Card className="p-8 flex flex-col items-center gap-6">
+                            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
+                                <UserPlus size={32} />
                             </div>
-                            <Button className="w-full flex items-center justify-center gap-2" onClick={handleCopy}>
-                                {copied ? 'Copied!' : 'Copy Registration Link'}
-                            </Button>
-                            <Button variant="secondary" className="w-full flex items-center justify-center gap-2" onClick={() => window.open(registrationUrl, '_blank')}>
-                                <ExternalLink size={16} /> Test Link
-                            </Button>
-                        </div>
-                    </Card>
+                            <div className="text-center">
+                                <h3 className="font-bold text-gray-900 uppercase text-xs tracking-widest mb-1">Registration Link</h3>
+                                <p className="text-gray-500 text-[10px] uppercase">Send to your new students via WhatsApp</p>
+                            </div>
+
+                            <div className="w-full space-y-3">
+                                <div className="relative group">
+                                    <Input
+                                        value={registrationUrl}
+                                        readOnly
+                                        className="pr-12 text-xs font-mono bg-gray-50"
+                                    />
+                                    <button
+                                        onClick={handleCopy}
+                                        className="absolute right-3 top-[34px] p-2 text-gray-400 hover:text-gray-900 transition-colors"
+                                        title="Copy Link"
+                                    >
+                                        {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
+                                    </button>
+                                </div>
+                                <Button className="w-full flex items-center justify-center gap-2" onClick={handleCopy}>
+                                    {copied ? 'Copied!' : 'Copy Registration Link'}
+                                </Button>
+                                <Button variant="secondary" className="w-full flex items-center justify-center gap-2" onClick={() => window.open(registrationUrl, '_blank')}>
+                                    <ExternalLink size={16} /> Test Link
+                                </Button>
+                            </div>
+                        </Card>
+
+                        <Card className="p-8 flex flex-col items-center gap-6">
+                            <div className="w-16 h-16 bg-gray-50 text-gray-900 rounded-full flex items-center justify-center">
+                                <LogIn size={32} />
+                            </div>
+                            <div className="text-center">
+                                <h3 className="font-bold text-gray-900 uppercase text-xs tracking-widest mb-1">Student Login Link</h3>
+                                <p className="text-gray-500 text-[10px] uppercase">Link for existing students to access</p>
+                            </div>
+
+                            <div className="w-full space-y-3">
+                                <div className="relative group">
+                                    <Input
+                                        value={loginUrl}
+                                        readOnly
+                                        className="pr-12 text-xs font-mono bg-gray-50"
+                                    />
+                                    <button
+                                        onClick={handleCopyLogin}
+                                        className="absolute right-3 top-[34px] p-2 text-gray-400 hover:text-gray-900 transition-colors"
+                                        title="Copy Link"
+                                    >
+                                        {copiedLogin ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
+                                    </button>
+                                </div>
+                                <Button className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800" onClick={handleCopyLogin}>
+                                    {copiedLogin ? 'Copied!' : 'Copy Login Link'}
+                                </Button>
+                                <Button variant="secondary" className="w-full flex items-center justify-center gap-2" onClick={() => window.open(loginUrl, '_blank')}>
+                                    <ExternalLink size={16} /> Test Link
+                                </Button>
+                            </div>
+                        </Card>
+                    </div>
 
                     <Card className="p-8 flex flex-col items-center justify-center text-center gap-6 bg-gray-50 border-dashed">
                         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">

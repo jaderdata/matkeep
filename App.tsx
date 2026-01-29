@@ -9,6 +9,7 @@ import AcademyReports from './views/AcademyReports';
 import AcademyRegistrationLink from './views/AcademyRegistrationLink';
 import StudentPortal from './views/StudentPortal';
 import PublicRegistration from './views/PublicRegistration';
+import StudentLogin from './views/StudentLogin';
 import Login from './views/Login';
 import AcademyWizard from './views/AcademyWizard';
 import { MasterLayout } from './views/Master/MasterLayout';
@@ -67,7 +68,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const SYSTEM_VERSION = 'v1.0.9';
+  const SYSTEM_VERSION = 'v1.0.11';
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -165,7 +166,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         <nav className="flex-1 py-4">
           <SidebarLink to="/academy/dashboard" icon={<LayoutDashboard size={20} />} label={isCollapsed ? "" : "Dashboard"} />
           <SidebarLink to="/academy/students" icon={<Users size={20} />} label={isCollapsed ? "" : "Students"} />
-          <SidebarLink to="/academy/registration-link" icon={<UserPlus size={20} />} label={isCollapsed ? "" : "Registration Link"} />
+          <SidebarLink to="/academy/registration-link" icon={<UserPlus size={20} />} label={isCollapsed ? "" : "Student Registration"} />
           <SidebarLink to="/academy/reports" icon={<FileText size={20} />} label={isCollapsed ? "" : "Reports"} />
           <SidebarLink to="/academy/settings" icon={<Settings size={20} />} label={isCollapsed ? "" : "Settings"} />
         </nav>
@@ -245,7 +246,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 };
 
 const StudentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const SYSTEM_VERSION = 'v1.0.9';
+  const SYSTEM_VERSION = 'v1.0.11';
   const location = useLocation();
   const [academy, setAcademy] = useState<Academy | null>(null);
 
@@ -392,6 +393,7 @@ const App: React.FC = () => {
         <Route path="/academy/settings" element={<RequireAuth session={session}><AcademyLayout><AcademySettings /></AcademyLayout></RequireAuth>} />
 
         {/* Student Portal (Unprotected for now or has its own auth) */}
+        <Route path="/student/login" element={<StudentLogin />} />
         <Route path="/student/*" element={<StudentLayout><StudentPortal /></StudentLayout>} />
 
         {/* Public Registration */}
