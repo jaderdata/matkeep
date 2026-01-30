@@ -295,11 +295,7 @@ const StudentLogin: React.FC = () => {
                     )}
                 </div>
 
-                <div className="p-6 bg-gray-50 border-t border-gray-100 text-center">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                        Secure Authentication Node Matkeep
-                    </p>
-                </div>
+
             </div>
         </div>
     );

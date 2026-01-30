@@ -95,11 +95,19 @@ const StudentDashboard = () => {
   }, [attendance]);
 
   React.useEffect(() => {
+    // Initial fetch
     fetchStudent();
 
     const id = localStorage.getItem('current_student_id');
     if (!id) return;
 
+    // 1. Window Focus Listener (Fix for Mobile/Safari tabs freezing)
+    const handleFocus = () => {
+      fetchStudent();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // 2. Realtime Subscription (Listen for Profile AND Attendance changes)
     const channel = supabase
       .channel('student_dashboard_updates')
       .on(
@@ -111,14 +119,29 @@ const StudentDashboard = () => {
           filter: `id=eq.${id}`
         },
         (payload) => {
+          // If student data changes (e.g. photo, belt), update specific state OR just refetch
           if (payload.eventType === 'UPDATE') {
             setStudent(payload.new as Student);
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance',
+          filter: `student_id=eq.${id}`
+        },
+        () => {
+          // If attendance changes (new class), refetch to update stats/xp
+          fetchStudent();
+        }
+      )
       .subscribe();
 
     return () => {
+      window.removeEventListener('focus', handleFocus);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -402,10 +425,7 @@ const CardPassView = () => {
 
   return (
     <div className="flex flex-col items-center gap-10 py-4 w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
-      <div className="text-center">
-        <h2 className="text-xs font-black uppercase tracking-[0.5em] text-gray-400 mb-2">Identification Node</h2>
-        <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Digital Authentication System</p>
-      </div>
+
 
       <div className="w-full flex justify-center py-4 px-4 overflow-x-auto">
         {/* The Card Container - Redesigned Vertical ID */}
@@ -505,9 +525,7 @@ const CardPassView = () => {
             </>
           )}
         </button>
-        <p className="text-[9px] text-gray-400 text-center font-bold uppercase tracking-[0.3em] px-8 opacity-60">
-          Node encryption active • Generated for secure access
-        </p>
+
       </div>
     </div>
   );
