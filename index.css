@@ -1,35 +1,123 @@
 @import "tailwindcss";
 
+:root {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.7);
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+  --accent-primary: #0f172a;
+  --accent-hover: #000000;
+  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+}
+
+[data-theme="dark"] {
+  --bg-primary: #020617;
+  --bg-secondary: #0f172a;
+  --bg-card: #1e293b;
+  --bg-glass: rgba(15, 23, 42, 0.8);
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --border-color: rgba(255, 255, 255, 0.06);
+  --accent-primary: #f1f5f9;
+  --accent-hover: #ffffff;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.6);
+  --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.7);
+}
+
 @layer base {
   body {
-    font-family: 'Inter', sans-serif;
-    background-color: #f8fafc;
-    color: #111827;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Global Override for tables in dark mode */
+  [data-theme="dark"] table thead {
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-secondary) !important;
+    border-color: var(--border-color) !important;
+  }
+
+  [data-theme="dark"] table tbody tr {
+    border-color: var(--border-color) !important;
+  }
+
+  [data-theme="dark"] table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.02) !important;
+  }
+
+  [data-theme="dark"] .text-gray-900 {
+    color: var(--text-primary) !important;
+  }
+
+  [data-theme="dark"] .text-gray-700 {
+    color: var(--text-secondary) !important;
+  }
+
+  [data-theme="dark"] .text-gray-600 {
+    color: var(--text-secondary) !important;
+  }
+
+  [data-theme="dark"] .text-gray-500 {
+    color: var(--text-secondary) !important;
+  }
+
+  [data-theme="dark"] .bg-gray-50 {
+    background-color: var(--bg-secondary) !important;
+  }
+
+  [data-theme="dark"] .bg-gray-100 {
+    background-color: var(--bg-secondary) !important;
+  }
+
+  [data-theme="dark"] .border-gray-200 {
+    border-color: var(--border-color) !important;
+  }
+
+  [data-theme="dark"] .border-gray-300 {
+    border-color: var(--border-color) !important;
+  }
+
+  [data-theme="dark"] .divide-gray-200> :not([hidden])~ :not([hidden]) {
+    border-color: var(--border-color) !important;
   }
 }
 
 .glass {
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--bg-glass);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.glass-dark {
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-color);
 }
 
 .bg-mesh {
-  background-color: #f8fafc;
+  background-color: var(--bg-primary);
   background-image:
-    radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.1) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.1) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
-    radial-gradient(at 0% 100%, rgba(168, 85, 247, 0.1) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(168, 85, 247, 0.05) 0px, transparent 50%);
+}
+
+.transition-ui {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
 }
 
 .animate-glow {

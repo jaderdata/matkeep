@@ -5,13 +5,22 @@ import { Card, Input, Button, Badge, Select } from '../components/UI';
 import { FlagStatus, Belt, UserStatus, Student } from '../types';
 import { supabase } from '../services/supabase';
 import { attendanceService } from '../services/attendanceService';
-import { Loader2, CreditCard, Hash } from 'lucide-react';
+import { Loader2, CreditCard, Hash, FileDown, ExternalLink } from 'lucide-react';
 import Barcode from 'react-barcode';
 import { formatUSPhone } from '../utils';
+import { StudentDocuments } from '../components/StudentDocuments';
+
+import { useAcademy } from '../contexts/AcademyContext';
+
+import { useStudents } from '../hooks/useQueries';
+import { toast } from 'sonner';
 
 const StudentManagement: React.FC = () => {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { academyId, loading: academyLoading } = useAcademy();
+  const { data: studentsData = [], isLoading: studentsLoading, refetch: refetchStudents } = useStudents(academyId);
+  const students = studentsData;
+  const loading = academyLoading || studentsLoading;
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterBelt, setFilterBelt] = useState('All');
   const [filterFlag, setFilterFlag] = useState('All');
@@ -19,8 +28,8 @@ const StudentManagement: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [academyId, setAcademyId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'documents'>('details');
 
   const [newStudent, setNewStudent] = useState({
     name: '',
@@ -42,6 +51,7 @@ const StudentManagement: React.FC = () => {
     card_pass_code: ''
   });
 
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
   const [showResetModal, setShowResetModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
 
@@ -56,20 +66,6 @@ const StudentManagement: React.FC = () => {
   const [selectedStudentForPhoto, setSelectedStudentForPhoto] = useState<Student | null>(null);
 
   React.useEffect(() => {
-    const initialize = async () => {
-      // Tenta buscar a primeira academia disponível
-      const { data: acaData } = await supabase.from('academies').select('id').limit(1).maybeSingle();
-      if (acaData) {
-        setAcademyId(acaData.id);
-        fetchStudents(acaData.id);
-      } else {
-        setLoading(false);
-      }
-    };
-    initialize();
-  }, []);
-
-  React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (activeMenuId && !(event.target as HTMLElement).closest('.relative')) {
         setActiveMenuId(null);
@@ -78,23 +74,6 @@ const StudentManagement: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeMenuId]);
-
-  const fetchStudents = async (id: string) => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('academy_id', id);
-
-      if (error) throw error;
-      setStudents(data || []);
-    } catch (err) {
-      console.error('Error fetching students:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,22 +95,19 @@ const StudentManagement: React.FC = () => {
 
       if (error) throw error;
 
-      // Generate Sequential Code based on DB internal_id
-      // Format: 10000000 + internal_id (e.g., 10000001, 10000002)
       const seqCode = data.internal_id
         ? (10000000 + Number(data.internal_id)).toString()
         : Math.floor(10000000 + Math.random() * 9000000).toString();
 
-      const { data: finalData, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from('students')
         .update({ card_pass_code: seqCode })
-        .eq('id', data.id)
-        .select()
-        .single();
+        .eq('id', data.id);
 
       if (updateError) throw updateError;
 
-      setStudents(prev => [finalData, ...prev]);
+      toast.success('Student registered successfully!');
+      refetchStudents();
       setShowAddModal(false);
       setNewStudent({
         name: '',
@@ -141,9 +117,9 @@ const StudentManagement: React.FC = () => {
         belt: Belt.BRANCA,
         degrees: 0
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error adding student:', err);
-      alert('Error registering student.');
+      toast.error('Error registering student: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -158,10 +134,11 @@ const StudentManagement: React.FC = () => {
       birth_date: student.birth_date || '',
       belt: student.belt,
       degrees: student.degrees,
-      internal_id: student.internal_id || '',
+      internal_id: String(student.internal_id || ''),
       card_pass_code: student.card_pass_code || ''
     });
     setShowEditModal(true);
+    setActiveTab('details');
     setActiveMenuId(null);
   };
 
@@ -196,11 +173,12 @@ const StudentManagement: React.FC = () => {
 
       if (error) throw error;
 
-      setStudents(prev => prev.map(s => s.id === data.id ? data : s));
+      toast.success('Student updated successfully!');
+      refetchStudents();
       setShowEditModal(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating student:', err);
-      alert('Error updating student.');
+      toast.error('Error updating student: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -227,17 +205,18 @@ const StudentManagement: React.FC = () => {
         .eq('id', studentId);
 
       if (error) throw error;
-      setStudents(prev => prev.filter(s => s.id !== studentId));
+      toast.success('Student deleted successfully!');
+      refetchStudents();
       setActiveMenuId(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting student:', err);
-      alert('Error deleting student.');
+      toast.error('Error deleting student: ' + err.message);
     }
   };
 
   const handleOpenResetModal = (student: Student) => {
     setSelectedStudent(student);
-    setNewPassword('mudar123'); // Default suggestions
+    setNewPassword('123456'); // Default password as per user request
     setShowResetModal(true);
     setActiveMenuId(null);
   }
@@ -255,11 +234,11 @@ const StudentManagement: React.FC = () => {
 
       if (error) throw error;
 
-      alert(`Password successfully changed to: ${newPassword}`);
+      toast.success(`Password successfully changed to: ${newPassword}`);
       setShowResetModal(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error resetting password:', err);
-      alert('Error changing password.');
+      toast.error('Error changing password: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -276,23 +255,53 @@ const StudentManagement: React.FC = () => {
         .single();
 
       if (error) throw error;
-      setStudents(prev => prev.map(s => s.id === data.id ? data : s));
+      toast.success(`Status updated to ${newStatus}`);
+      refetchStudents();
       setActiveMenuId(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error toggling status:', err);
-      alert('Error changing status.');
+      toast.error('Error changing status: ' + err.message);
     }
+  };
+
+  const handleExportCSV = () => {
+    if (students.length === 0) return;
+
+    const headers = ['Name', 'Email', 'Phone', 'Belt', 'Degrees', 'Status', 'Flag', 'Last Attendance', 'Internal ID'];
+    const csvContent = [
+      headers.join(','),
+      ...students.map(s => [
+        `"${s.name}"`,
+        `"${s.email || ''}"`,
+        `"${s.phone || ''}"`,
+        `"${translateBelt(s.belt)}"`,
+        s.degrees,
+        `"${s.status}"`,
+        `"${translateFlag(s.flag)}"`,
+        `"${s.last_attendance ? new Date(s.last_attendance).toLocaleDateString() : 'Never'}"`,
+        `"${s.internal_id || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `matkeep_students_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const filteredStudents = students.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.phone.includes(searchTerm);
+      (s.phone && s.phone.includes(searchTerm));
     const matchesBelt = filterBelt === 'All' || s.belt === filterBelt;
     const matchesFlag = filterFlag === 'All' || s.flag === filterFlag;
     return matchesSearch && matchesBelt && matchesFlag;
   });
 
-  if (loading) {
+  if (loading || academyLoading) {
     return (
       <div className="flex items-center justify-center p-20">
         <Loader2 className="animate-spin text-gray-400" size={48} />
@@ -307,66 +316,76 @@ const StudentManagement: React.FC = () => {
           <h2 className="text-2xl font-black uppercase tracking-tight mb-2">Student Management</h2>
           <p className="text-gray-500 text-sm">View and manage all students linked to your academy.</p>
         </div>
-        <Button className="flex items-center gap-2" onClick={() => setShowAddModal(true)}>
-          <UserPlus size={18} />
-          <span>Register Student</span>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" className="flex items-center gap-2" onClick={handleExportCSV}>
+            <FileDown size={18} />
+            <span>Export CSV</span>
+          </Button>
+        </div>
       </div>
 
-      <Card className="p-4 bg-gray-50">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="md:col-span-2">
-            <Input
-              label="Search Student"
-              placeholder="Name, Phone or Card Pass..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+      <Card className="p-6 bg-[var(--bg-secondary)]/30 border-none shadow-none">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+          <div className="md:col-span-6 relative group">
+            <span className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest mb-1 block">Search Students</span>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] group-focus-within:text-[var(--text-primary)] transition-ui" size={16} />
+              <input
+                placeholder="Name, email or phone..."
+                className="pl-10 p-3 h-[46px] border border-[var(--border-color)] bg-[var(--bg-card)] focus:outline-none focus:border-[var(--text-primary)] focus:ring-1 focus:ring-[var(--text-primary)]/20 rounded-none w-full transition-ui placeholder:text-[var(--text-secondary)] shadow-sm text-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="md:col-span-3">
+            <Select
+              label="Belt Rank"
+              options={[
+                { value: 'All', label: 'All Belts' },
+                ...Object.values(Belt).map(b => ({ value: b, label: b }))
+              ]}
+              value={filterBelt}
+              onChange={e => setFilterBelt(e.target.value)}
             />
           </div>
-          <Select
-            label="Filter by Belt"
-            options={[
-              { value: 'All', label: 'All Belts' },
-              ...Object.values(Belt).map(b => ({ value: b, label: b }))
-            ]}
-            value={filterBelt}
-            onChange={e => setFilterBelt(e.target.value)}
-          />
-          <Select
-            label="Filter by Flag"
-            options={[
-              { value: 'All', label: 'All Colors' },
-              { value: FlagStatus.VERDE, label: 'Green' },
-              { value: FlagStatus.AMARELA, label: 'Yellow' },
-              { value: FlagStatus.VERMELHA, label: 'Red' },
-            ]}
-            value={filterFlag}
-            onChange={e => setFilterFlag(e.target.value)}
-          />
+          <div className="md:col-span-3">
+            <Select
+              label="Activity Flag"
+              options={[
+                { value: 'All', label: 'All Colors' },
+                { value: FlagStatus.VERDE, label: 'Green' },
+                { value: FlagStatus.AMARELA, label: 'Yellow' },
+                { value: FlagStatus.VERMELHA, label: 'Red' },
+              ]}
+              value={filterFlag}
+              onChange={e => setFilterFlag(e.target.value)}
+            />
+          </div>
         </div>
       </Card>
 
       <Card>
         <div className="overflow-x-auto min-h-[600px] pb-64">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-100 text-[10px] uppercase font-bold text-gray-500 border-b border-gray-300">
+            <thead className="bg-[var(--bg-secondary)] text-[10px] uppercase font-black tracking-widest text-[var(--text-secondary)] border-b border-[var(--border-color)]">
               <tr>
                 <th className="px-6 py-4">Student</th>
-                <th className="px-6 py-4">Belt</th>
-                <th className="px-6 py-4">Degrees</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Flag</th>
-                <th className="px-6 py-4">Last Attendance</th>
+                <th className="px-6 py-4 text-center">Belt</th>
+                <th className="px-6 py-4 text-center">Degrees</th>
+                <th className="px-6 py-4 text-center">Status</th>
+                <th className="px-6 py-4 text-center">Flag</th>
+                <th className="px-6 py-4 text-center">Last Attendance</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-[var(--border-color)]">
               {filteredStudents.map(student => (
-                <tr key={student.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={student.id} className="hover:bg-[var(--bg-secondary)]/40 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
-                      <span className="font-bold text-gray-900">{student.name}</span>
-                      <span className="text-xs text-gray-500">{student.phone}</span>
+                      <span className="font-bold text-[var(--text-primary)]">{student.name}</span>
+                      <span className="text-[10px] uppercase font-black tracking-tighter text-[var(--text-secondary)]">{student.phone}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -374,7 +393,7 @@ const StudentManagement: React.FC = () => {
                       {translateBelt(student.belt)} Belt
                     </span>
                   </td>
-                  <td className="px-6 py-4 font-bold text-gray-700">{student.degrees}</td>
+                  <td className="px-6 py-4 font-black text-[var(--text-primary)]">{student.degrees}</td>
                   <td className="px-6 py-4">
                     <Badge color={student.status === UserStatus.ATIVO ? 'green' : 'gray'}>{student.status}</Badge>
                   </td>
@@ -384,14 +403,25 @@ const StudentManagement: React.FC = () => {
                       <span className="text-[10px] font-bold uppercase">{translateFlag(student.flag)}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-[10px] font-bold text-gray-500 uppercase">
+                  <td className="px-6 py-4 text-[10px] font-bold text-[var(--text-secondary)] uppercase">
                     {student.last_attendance ? new Date(student.last_attendance).toLocaleDateString('en-US') : 'No record'}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-2 relative">
+                      {student.phone && (
+                        <a
+                          href={`https://wa.me/${student.phone.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 border border-[var(--border-color)] hover:bg-green-500/10 text-green-500 transition-colors"
+                          title="Send WhatsApp"
+                        >
+                          <MessageCircle size={14} />
+                        </a>
+                      )}
                       {student.flag !== FlagStatus.VERDE && (
-                        <button className="p-1.5 border border-gray-300 hover:bg-gray-100" title="Mark Contact Made">
-                          <MessageCircle size={14} className="text-blue-600" />
+                        <button className="p-1.5 border border-[var(--border-color)] hover:bg-[var(--bg-secondary)]" title="Mark Contact Made">
+                          <MessageCircle size={14} className="text-blue-500" />
                         </button>
                       )}
                       <button
@@ -411,20 +441,20 @@ const StudentManagement: React.FC = () => {
                       </button>
                       <div className="relative">
                         <button
-                          className={`p-1.5 border transition-all ${activeMenuId === student.id ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-300 hover:bg-gray-100'}`}
+                          className={`p-1.5 border transition-all ${activeMenuId === student.id ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[var(--bg-primary)]' : 'border-[var(--border-color)] hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                           onClick={() => setActiveMenuId(activeMenuId === student.id ? null : student.id)}
                         >
                           <MoreHorizontal size={14} />
                         </button>
 
                         {activeMenuId === student.id && (
-                          <div className="absolute right-0 mt-3 w-56 bg-white shadow-[0_10px_40px_rgba(0,0,0,0.15)] z-50 border border-gray-100 rounded-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                            <div className="px-4 py-3 bg-gray-50/80 border-b border-gray-100">
-                              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Student Options</p>
+                          <div className="absolute right-0 mt-3 w-56 bg-[var(--bg-card)] shadow-2xl z-50 border border-[var(--border-color)] rounded-none overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="px-4 py-3 bg-[var(--bg-secondary)] border-b border-[var(--border-color)]">
+                              <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">Student Options</p>
                             </div>
                             <div className="p-1">
                               <button
-                                className="w-full text-left px-3 py-2.5 text-xs font-bold uppercase hover:bg-gray-50 flex items-center gap-3 text-gray-700 rounded-md transition-all group"
+                                className="w-full text-left px-3 py-2.5 text-xs font-bold uppercase hover:bg-[var(--bg-secondary)] flex items-center gap-3 text-[var(--text-primary)] transition-all group"
                                 onClick={() => handleEdit(student)}
                               >
                                 <div className="w-7 h-7 bg-blue-50 text-blue-600 flex items-center justify-center rounded transition-colors group-hover:bg-blue-600 group-hover:text-white">
@@ -474,14 +504,18 @@ const StudentManagement: React.FC = () => {
                                 </div>
                                 Reset Password
                               </button>
-                              <div className="border-t border-gray-100 my-1"></div>
+                              <div className="border-t border-[var(--border-color)] my-1"></div>
                               <button
-                                className="w-full text-left px-3 py-2.5 text-xs font-bold uppercase hover:bg-blue-50 flex items-center gap-3 text-blue-700 rounded-md transition-all group"
+                                className="w-full text-left px-3 py-2.5 text-xs font-bold uppercase hover:bg-[var(--accent-primary)]/10 flex items-center gap-3 text-[var(--text-primary)] transition-all group"
                                 onClick={async () => {
                                   if (confirm(`Confirm manual attendance for ${student.name}?`)) {
                                     const res = await attendanceService.manualAttendance(student.id);
-                                    alert(res.message);
-                                    if (res.success) fetchStudents(academyId); // Refresh to see updated timestamp if we displayed it
+                                    if (res.success) {
+                                      toast.success(res.message);
+                                      refetchStudents();
+                                    } else {
+                                      toast.error(res.message);
+                                    }
                                   }
                                   setActiveMenuId(null);
                                 }}
@@ -528,293 +562,350 @@ const StudentManagement: React.FC = () => {
       </Card>
 
       {/* Cadastro Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="max-w-2xl w-full shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-gray-300 flex justify-between items-center bg-gray-50">
-              <h3 className="text-sm font-black uppercase tracking-widest">Register New Student</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-900 text-2xl">&times;</button>
-            </div>
-            <form onSubmit={handleAddStudent} className="p-6 space-y-4" autoComplete="off">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
+      {
+        showAddModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="max-w-2xl w-full shadow-2xl overflow-hidden">
+              <div className="p-4 border-b border-gray-300 flex justify-between items-center bg-gray-50">
+                <h3 className="text-sm font-black uppercase tracking-widest">Register New Student</h3>
+                <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-900 text-2xl">&times;</button>
+              </div>
+              <form onSubmit={handleAddStudent} className="p-6 space-y-4" autoComplete="off">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <Input
+                      label="Full Name"
+                      required
+                      value={newStudent.name}
+                      onChange={e => setNewStudent({ ...newStudent, name: e.target.value })}
+                      autoComplete="new-password"
+                    />
+                  </div>
                   <Input
-                    label="Full Name"
+                    label="Email"
+                    type="email"
                     required
-                    value={newStudent.name}
-                    onChange={e => setNewStudent({ ...newStudent, name: e.target.value })}
+                    value={newStudent.email}
+                    onChange={e => setNewStudent({ ...newStudent, email: e.target.value })}
                     autoComplete="new-password"
                   />
-                </div>
-                <Input
-                  label="Email"
-                  type="email"
-                  required
-                  value={newStudent.email}
-                  onChange={e => setNewStudent({ ...newStudent, email: e.target.value })}
-                  autoComplete="new-password"
-                />
-                <Input
-                  label="Phone / WhatsApp"
-                  placeholder="(000) 000-0000"
-                  required
-                  value={newStudent.phone}
-                  onChange={e => setNewStudent({ ...newStudent, phone: formatUSPhone(e.target.value) })}
-                  autoComplete="new-password"
-                />
-                <Input
-                  label="Date of Birth"
-                  type="date"
-                  required
-                  value={newStudent.birth_date}
-                  onChange={e => setNewStudent({ ...newStudent, birth_date: e.target.value })}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Select
-                    label="Belt"
-                    options={Object.values(Belt).map(b => ({ value: b, label: b }))}
-                    value={newStudent.belt}
-                    onChange={e => setNewStudent({ ...newStudent, belt: e.target.value as Belt })}
+                  <Input
+                    label="Phone / WhatsApp"
+                    placeholder="(000) 000-0000"
+                    required
+                    value={newStudent.phone}
+                    onChange={e => setNewStudent({ ...newStudent, phone: formatUSPhone(e.target.value) })}
+                    autoComplete="new-password"
                   />
-                  <Select
-                    label="Degrees"
-                    options={[0, 1, 2, 3, 4].map(g => ({ value: String(g), label: String(g) }))}
-                    value={String(newStudent.degrees)}
-                    onChange={e => setNewStudent({ ...newStudent, degrees: Number(e.target.value) })}
+                  <Input
+                    label="Date of Birth"
+                    type="date"
+                    required
+                    value={newStudent.birth_date}
+                    onChange={e => setNewStudent({ ...newStudent, birth_date: e.target.value })}
                   />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select
+                      label="Belt"
+                      options={Object.values(Belt).map(b => ({ value: b, label: b }))}
+                      value={newStudent.belt}
+                      onChange={e => setNewStudent({ ...newStudent, belt: e.target.value as Belt })}
+                    />
+                    <Select
+                      label="Degrees"
+                      options={[0, 1, 2, 3, 4].map(g => ({ value: String(g), label: String(g) }))}
+                      value={String(newStudent.degrees)}
+                      onChange={e => setNewStudent({ ...newStudent, degrees: Number(e.target.value) })}
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2 pt-4 border-t border-gray-100">
-                <Button type="submit" className="flex-1" disabled={saving}>
-                  {saving ? <Loader2 className="animate-spin mr-2 inline" size={18} /> : null}
-                  {saving ? 'Registering...' : 'Finalize Registration'}
-                </Button>
-                <Button variant="secondary" type="button" onClick={() => setShowAddModal(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </Card>
-        </div>
-      )}
+                <div className="flex gap-2 pt-4 border-t border-[var(--border-color)]">
+                  <Button type="submit" className="flex-1" disabled={saving}>
+                    {saving ? <Loader2 className="animate-spin mr-2 inline" size={18} /> : null}
+                    {saving ? 'Registering...' : 'Finalize Registration'}
+                  </Button>
+                  <Button variant="secondary" type="button" onClick={() => setShowAddModal(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          </div>
+        )
+      }
 
       {/* Edição Modal */}
-      {showEditModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="max-w-2xl w-full shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-gray-300 flex justify-between items-center bg-gray-50">
-              <h3 className="text-sm font-black uppercase tracking-widest">Edit Student</h3>
-              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-900 text-2xl">&times;</button>
-            </div>
-            <form onSubmit={handleUpdateStudent} className="p-6 space-y-4" autoComplete="off">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <Input
-                    label="Full Name"
-                    required
-                    value={editForm.name}
-                    onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                    autoComplete="new-password"
-                  />
-                </div>
-                <Input
-                  label="Email"
-                  type="email"
-                  required
-                  value={editForm.email}
-                  onChange={e => setEditForm({ ...editForm, email: e.target.value })}
-                  autoComplete="new-password"
-                />
-                <Input
-                  label="Phone / WhatsApp"
-                  placeholder="(000) 000-0000"
-                  required
-                  value={editForm.phone}
-                  onChange={e => setEditForm({ ...editForm, phone: formatUSPhone(e.target.value) })}
-                  autoComplete="new-password"
-                />
-                <Input
-                  label="Date of Birth"
-                  type="date"
-                  required
-                  value={editForm.birth_date}
-                  onChange={e => setEditForm({ ...editForm, birth_date: e.target.value })}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Select
-                    label="Belt"
-                    options={Object.values(Belt).map(b => ({ value: b, label: b }))}
-                    value={editForm.belt}
-                    onChange={e => setEditForm({ ...editForm, belt: e.target.value as Belt })}
-                  />
-                  <Select
-                    label="Degrees"
-                    options={[0, 1, 2, 3, 4].map(g => ({ value: String(g), label: String(g) }))}
-                    value={String(editForm.degrees)}
-                    onChange={e => setEditForm({ ...editForm, degrees: Number(e.target.value) })}
-                  />
-                </div>
-                <div className="md:col-span-2 p-4 bg-gray-50 border border-dashed border-gray-200 rounded-lg flex flex-col items-center gap-4">
-                  <div className="w-full flex justify-between items-center mb-2">
-                    <div className="flex items-center gap-2">
-                      <Hash size={16} className="text-gray-400" />
-                      <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Sequential ID</span>
+      {
+        showEditModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="max-w-2xl w-full shadow-2xl overflow-hidden">
+              <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-secondary)]">
+                <h3 className="text-sm font-black uppercase tracking-widest text-[var(--text-primary)]">Edit Student</h3>
+                <button onClick={() => setShowEditModal(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-2xl">&times;</button>
+              </div>
+
+              <div className="flex border-b border-[var(--border-color)] bg-[var(--bg-card)]">
+                <button
+                  className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors ${activeTab === 'details' ? 'border-[var(--accent-primary)] text-[var(--text-primary)] bg-[var(--bg-secondary)]' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                  onClick={() => setActiveTab('details')}
+                >
+                  Details
+                </button>
+                <button
+                  className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors ${activeTab === 'documents' ? 'border-[var(--accent-primary)] text-[var(--text-primary)] bg-[var(--bg-secondary)]' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                  onClick={() => setActiveTab('documents')}
+                >
+                  Documents
+                </button>
+              </div>
+
+              {activeTab === 'details' ? (
+                <form onSubmit={handleUpdateStudent} className="p-6 space-y-4" autoComplete="off">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Full Name"
+                        required
+                        value={editForm.name}
+                        onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                        autoComplete="new-password"
+                      />
                     </div>
-                    <span className="font-black text-gray-900 text-sm">
-                      {editForm.internal_id || '---'}
-                    </span>
-                  </div>
-
-                  <div className="w-full">
                     <Input
-                      label="Card Pass / Barcode (Auto-Generated)"
-                      value={editForm.card_pass_code}
-                      onChange={e => setEditForm({ ...editForm, card_pass_code: e.target.value })}
-                      placeholder="Scan or type code..."
-                      disabled
+                      label="Email"
+                      type="email"
+                      required
+                      value={editForm.email}
+                      onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                      autoComplete="new-password"
                     />
-                  </div>
+                    <Input
+                      label="Phone / WhatsApp"
+                      placeholder="(000) 000-0000"
+                      required
+                      value={editForm.phone}
+                      onChange={e => setEditForm({ ...editForm, phone: formatUSPhone(e.target.value) })}
+                      autoComplete="new-password"
+                    />
+                    <Input
+                      label="Date of Birth"
+                      type="date"
+                      required
+                      value={editForm.birth_date}
+                      onChange={e => setEditForm({ ...editForm, birth_date: e.target.value })}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Select
+                        label="Belt"
+                        options={Object.values(Belt).map(b => ({ value: b, label: b }))}
+                        value={editForm.belt}
+                        onChange={e => setEditForm({ ...editForm, belt: e.target.value as Belt })}
+                      />
+                      <Select
+                        label="Degrees"
+                        options={[0, 1, 2, 3, 4].map(g => ({ value: String(g), label: String(g) }))}
+                        value={String(editForm.degrees)}
+                        onChange={e => setEditForm({ ...editForm, degrees: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="md:col-span-2 p-4 bg-gray-50 border border-dashed border-gray-200 rounded-lg flex flex-col items-center gap-4">
+                      <div className="w-full flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2">
+                          <Hash size={16} className="text-gray-400" />
+                          <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Sequential ID</span>
+                        </div>
+                        <span className="font-black text-gray-900 text-sm">
+                          {editForm.internal_id || '---'}
+                        </span>
+                      </div>
 
-                  <div className="bg-white p-4 rounded shadow-sm">
-                    <Barcode
-                      value={editForm.card_pass_code || '000000'}
-                      width={1.5}
-                      height={50}
-                      fontSize={12}
-                    />
+                      <div className="w-full">
+                        <Input
+                          label="Card Pass / Barcode (Auto-Generated)"
+                          value={editForm.card_pass_code}
+                          onChange={e => setEditForm({ ...editForm, card_pass_code: e.target.value })}
+                          placeholder="Scan or type code..."
+                          disabled
+                        />
+                      </div>
+
+                      <div className="bg-white p-4 rounded shadow-sm">
+                        <Barcode
+                          value={editForm.card_pass_code || '000000'}
+                          width={1.5}
+                          height={50}
+                          fontSize={12}
+                        />
+                      </div>
+                    </div>
                   </div>
+                  <div className="flex gap-2 pt-4 border-t border-gray-100">
+                    <Button type="submit" className="flex-1" disabled={saving}>
+                      {saving ? <Loader2 className="animate-spin mr-2 inline" size={18} /> : null}
+                      {saving ? 'Updating...' : 'Save Changes'}
+                    </Button>
+                    <Button variant="secondary" type="button" onClick={() => setShowEditModal(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <div className="p-6">
+                  <StudentDocuments studentId={selectedStudent?.id || ''} academyId={academyId || ''} />
                 </div>
-              </div>
-              <div className="flex gap-2 pt-4 border-t border-gray-100">
-                <Button type="submit" className="flex-1" disabled={saving}>
-                  {saving ? <Loader2 className="animate-spin mr-2 inline" size={18} /> : null}
-                  {saving ? 'Updating...' : 'Save Changes'}
-                </Button>
-                <Button variant="secondary" type="button" onClick={() => setShowEditModal(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </Card>
-        </div>
-      )}
+              )}
+            </Card>
+          </div >
+        )
+      }
 
       {/* Password Reset Modal */}
-      {showResetModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="max-w-md w-full shadow-2xl">
-            <div className="p-4 border-b border-gray-300 flex justify-between items-center">
-              <h3 className="text-sm font-black uppercase tracking-widest">Reset Password</h3>
-              <button onClick={() => setShowResetModal(false)} className="text-gray-400 hover:text-gray-900">&times;</button>
-            </div>
-            <form onSubmit={handleResetPassword} className="p-6 space-y-4">
-              <p className="text-xs text-gray-500">Set a new password for this student.</p>
-              <Input
-                type="password"
-                label="New Password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Minimum 6 characters"
-                required
-              />
-            </form>
-          </Card>
-        </div>
-      )}
+      {
+        showResetModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="max-w-md w-full shadow-2xl">
+              <div className="p-4 border-b border-gray-300 flex justify-between items-center">
+                <h3 className="text-sm font-black uppercase tracking-widest">Reset Password</h3>
+                <button onClick={() => setShowResetModal(false)} className="text-gray-400 hover:text-gray-900">&times;</button>
+              </div>
+              <form onSubmit={handleResetPassword} className="p-6 space-y-4">
+                {resetSuccess ? (
+                  <div className="bg-green-50 border border-green-200 p-6 rounded-lg text-center animate-in zoom-in duration-300">
+                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Check className="text-white" size={24} strokeWidth={3} />
+                    </div>
+                    <p className="text-sm font-black text-green-800 uppercase tracking-tight mb-2">Success!</p>
+                    <p className="text-xs text-green-600 font-bold uppercase">{resetSuccess}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-start gap-2 mb-2">
+                      <Lock size={14} className="text-amber-600 mt-0.5 shrink-0" />
+                      <p className="text-[10px] text-amber-800 font-bold uppercase leading-tight">
+                        Default password set to 123456 for convenience. You can change it below if needed.
+                      </p>
+                    </div>
+                    <Input
+                      type="password"
+                      label="New Password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Minimum 6 characters"
+                      required
+                    />
+                    <div className="flex gap-2 pt-2">
+                      <Button type="submit" className="flex-1" disabled={saving}>
+                        {saving ? <Loader2 className="animate-spin" size={18} /> : 'Confirm Reset'}
+                      </Button>
+                      <Button variant="secondary" type="button" onClick={() => setShowResetModal(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </form>
+            </Card>
+          </div>
+        )
+      }
 
       {/* History Modal */}
-      {showHistoryModal && selectedStudentForHistory && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="max-w-md w-full shadow-2xl max-h-[80vh] flex flex-col">
-            <div className="p-4 border-b border-gray-300 flex justify-between items-center bg-gray-50 shrink-0">
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest">Attendance History</h3>
-                <p className="text-xs text-gray-500 font-bold">{selectedStudentForHistory.name}</p>
+      {
+        showHistoryModal && selectedStudentForHistory && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="max-w-md w-full shadow-2xl max-h-[80vh] flex flex-col">
+              <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-secondary)] shrink-0">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-[var(--text-primary)]">Attendance History</h3>
+                  <p className="text-xs text-[var(--text-secondary)] font-bold">{selectedStudentForHistory.name}</p>
+                </div>
+                <button onClick={() => setShowHistoryModal(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xl">&times;</button>
               </div>
-              <button onClick={() => setShowHistoryModal(false)} className="text-gray-400 hover:text-gray-900 text-xl">&times;</button>
-            </div>
 
-            <div className="p-0 overflow-y-auto flex-1">
-              {loadingHistory ? (
-                <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-gray-400" /></div>
-              ) : historyData.length === 0 ? (
-                <div className="p-8 text-center text-gray-400 text-xs font-bold uppercase">No records found.</div>
-              ) : (
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th className="p-3 text-xs font-black text-gray-400 uppercase tracking-widest">Date</th>
-                      <th className="p-3 text-xs font-black text-gray-400 uppercase tracking-widest">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {historyData.map((record) => {
-                      const date = new Date(record.timestamp);
-                      return (
-                        <tr key={record.id} className="hover:bg-gray-50">
-                          <td className="p-3 text-gray-700 font-medium">
-                            {date.toLocaleDateString('en-US')}
-                          </td>
-                          <td className="p-3 text-gray-500 font-mono text-xs">
-                            {date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
+              <div className="p-0 overflow-y-auto flex-1">
+                {loadingHistory ? (
+                  <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-gray-400" /></div>
+                ) : historyData.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400 text-xs font-bold uppercase">No records found.</div>
+                ) : (
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-[var(--bg-secondary)] sticky top-0">
+                      <tr>
+                        <th className="p-3 text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest">Date</th>
+                        <th className="p-3 text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border-color)]">
+                      {historyData.map((record) => {
+                        const date = new Date(record.timestamp);
+                        return (
+                          <tr key={record.id} className="hover:bg-[var(--bg-secondary)]">
+                            <td className="p-3 text-[var(--text-primary)] font-medium">
+                              {date.toLocaleDateString('en-US')}
+                            </td>
+                            <td className="p-3 text-[var(--text-secondary)] font-mono text-xs">
+                              {date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
 
-            <div className="p-4 border-t border-gray-100 bg-gray-50 shrink-0 text-center">
-              <Button variant="secondary" onClick={() => setShowHistoryModal(false)} className="w-full">Close</Button>
-            </div>
-          </Card>
-        </div>
-      )}
+              <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)] shrink-0 text-center">
+                <Button variant="secondary" onClick={() => setShowHistoryModal(false)} className="w-full">Close</Button>
+              </div>
+            </Card>
+          </div>
+        )
+      }
 
       {/* Photo Viewer Modal */}
-      {showPhotoModal && selectedStudentForPhoto && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="max-w-2xl w-full shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-gray-300 flex justify-between items-center bg-gray-50">
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest">Student Photo</h3>
-                <p className="text-xs text-gray-500 font-bold">{selectedStudentForPhoto.name}</p>
+      {
+        showPhotoModal && selectedStudentForPhoto && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="max-w-md w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-secondary)] shrink-0">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-[var(--text-primary)]">Student Photo</h3>
+                  <p className="text-xs text-[var(--text-secondary)] font-bold">{selectedStudentForPhoto.name}</p>
+                </div>
+                <button onClick={() => setShowPhotoModal(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xl">&times;</button>
               </div>
-              <button onClick={() => setShowPhotoModal(false)} className="text-gray-400 hover:text-gray-900 text-xl">&times;</button>
-            </div>
 
-            <div className="p-6 bg-gray-50 flex items-center justify-center min-h-[400px]">
-              {selectedStudentForPhoto.photo_url ? (
-                <div className="relative w-full max-w-md">
-                  <img
-                    src={selectedStudentForPhoto.photo_url}
-                    alt={`${selectedStudentForPhoto.name}'s photo`}
-                    className="w-full h-auto rounded-lg shadow-lg border-4 border-white"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect width="400" height="400" fill="%23f3f4f6"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="18" fill="%239ca3af"%3EPhoto not available%3C/text%3E%3C/svg%3E';
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="text-center space-y-4">
-                  <div className="w-32 h-32 mx-auto bg-gray-200 rounded-full flex items-center justify-center">
-                    <User size={64} className="text-gray-400" />
+              <div className="p-4 bg-gray-50 flex items-center justify-center flex-1 min-h-0 overflow-hidden">
+                {selectedStudentForPhoto.photo_url ? (
+                  <div className="relative h-full w-full flex items-center justify-center">
+                    <img
+                      src={selectedStudentForPhoto.photo_url}
+                      alt={`${selectedStudentForPhoto.name}'s photo`}
+                      className="max-w-full max-h-full object-contain rounded-lg shadow-lg border-4 border-white"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect width="400" height="400" fill="%23f3f4f6"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="18" fill="%239ca3af"%3EPhoto not available%3C/text%3E%3C/svg%3E';
+                      }}
+                    />
                   </div>
-                  <p className="text-gray-500 font-bold uppercase text-xs tracking-widest">No photo available</p>
-                  <p className="text-gray-400 text-xs">This student hasn't uploaded a profile photo yet.</p>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <div className="text-center space-y-4">
+                    <div className="w-32 h-32 mx-auto bg-gray-200 rounded-full flex items-center justify-center">
+                      <User size={64} className="text-gray-400" />
+                    </div>
+                    <p className="text-gray-500 font-bold uppercase text-xs tracking-widest">No photo available</p>
+                    <p className="text-gray-400 text-xs">This student hasn't uploaded a profile photo yet.</p>
+                  </div>
+                )}
+              </div>
 
-            <div className="p-4 border-t border-gray-100 bg-gray-50 text-center">
-              <Button variant="secondary" onClick={() => setShowPhotoModal(false)} className="w-full">Close</Button>
-            </div>
-          </Card>
-        </div>
-      )}
-    </div>
+              <div className="p-4 border-t border-gray-100 bg-gray-50 text-center shrink-0">
+                <Button variant="secondary" onClick={() => setShowPhotoModal(false)} className="w-full">Close</Button>
+              </div>
+            </Card>
+          </div>
+        )
+      }
+    </div >
   );
 };
 

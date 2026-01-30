@@ -49,7 +49,8 @@ const MasterAcademyList: React.FC = () => {
 
     const handleManage = (academyId: string) => {
         localStorage.setItem('master_acting_as_academy_id', academyId);
-        window.location.href = '/#/academy/dashboard';
+        window.dispatchEvent(new CustomEvent('academy_updated'));
+        navigate('/academy/dashboard');
     };
 
     const handleTogglePlan = async (academyId: string, currentPlan: 'trial' | 'definitive') => {
@@ -130,8 +131,17 @@ const MasterAcademyList: React.FC = () => {
                     <h2 className="text-2xl font-black uppercase tracking-tight mb-2 text-gray-900">Academy Management</h2>
                     <p className="text-gray-500 text-sm">Complete list of registered partners.</p>
                 </div>
-                <div className="bg-amber-100 text-amber-800 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest">
-                    Total: {academies.length}
+                <div className="flex items-center gap-4">
+                    <Button
+                        variant="primary"
+                        className="font-black uppercase tracking-widest text-[10px] h-8 flex items-center"
+                        onClick={() => navigate('/register-academy')}
+                    >
+                        + New Academy
+                    </Button>
+                    <div className="bg-amber-100 text-amber-800 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest">
+                        Total: {academies.length}
+                    </div>
                 </div>
             </div>
 

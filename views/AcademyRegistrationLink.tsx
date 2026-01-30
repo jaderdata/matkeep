@@ -116,7 +116,7 @@ const AcademyRegistrationLink: React.FC = () => {
                         </div>
 
                         <div className="flex flex-col gap-2 w-full">
-                            <Button variant="outline" className="text-xs uppercase font-black tracking-widest flex items-center justify-center gap-2" onClick={() => window.print()}>
+                            <Button variant="secondary" className="text-xs uppercase font-black tracking-widest flex items-center justify-center gap-2" onClick={() => window.print()}>
                                 <Download size={14} /> Print A4 Sign
                             </Button>
                         </div>

@@ -48,7 +48,7 @@ export const MasterLayout: React.FC<{ children: React.ReactNode }> = ({ children
                 <nav className="flex-1 py-4">
                     <MasterSidebarLink to="/master/dashboard" icon={<LayoutDashboard size={20} />} label={isCollapsed ? "" : "Overview"} />
                     <MasterSidebarLink to="/master/academies" icon={<Building2 size={20} />} label={isCollapsed ? "" : "Academies"} />
-                    <MasterSidebarLink to="/master/registration-link" icon={<LinkIcon size={20} />} label={isCollapsed ? "" : "Registration Link"} />
+                    <MasterSidebarLink to="/master/registration-link" icon={<LinkIcon size={20} />} label={isCollapsed ? "" : "Invite Academy"} />
                 </nav>
 
                 <div className="p-4 border-t border-gray-800 overflow-hidden">

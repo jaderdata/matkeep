@@ -1,102 +1,33 @@
-
-import React from 'react';
-import { Users, UserCheck, UserMinus, AlertTriangle, TrendingUp, Calendar, Trophy, Flame } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Trophy, Flame, Loader2 } from 'lucide-react';
+import { TotalStudentsIcon, ActiveStudentsIcon, InactiveStudentsIcon, AvgAttendanceIcon, YellowFlagIcon, RedFlagIcon, CalendarIcon } from '../components/CustomIcons';
 import { Card, Badge } from '../components/UI';
 import { FlagStatus, UserStatus, Student, Academy } from '../types';
-import { supabase } from '../services/supabase';
-import { Loader2 } from 'lucide-react';
+import { useAcademy } from '../contexts/AcademyContext';
+import { useStudents, useAttendance } from '../hooks/useQueries';
 
-const KPI: React.FC<{ label: string; value: string | number; icon: React.ReactNode; color?: string }> = ({ label, value, icon, color = "text-gray-900" }) => (
-  <Card className="p-5">
-    <div className="flex items-start justify-between">
+const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; trend?: string; color: string }> = ({ title, value, icon, trend, color }) => (
+  <Card className="p-6 relative overflow-hidden transition-ui hover:shadow-lg">
+    <div className="flex justify-between items-start relative z-10">
       <div>
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">{label}</p>
-        <h3 className={`text-3xl font-black ${color}`}>{value}</h3>
+        <p className="text-xs font-medium text-[var(--text-secondary)] mb-2">{title}</p>
+        <h3 className="text-3xl font-bold text-[var(--text-primary)]">{value}</h3>
+        {trend && <p className="text-xs text-green-500 mt-2 flex items-center gap-1">{trend}</p>}
       </div>
-      <div className="text-gray-400">{icon}</div>
+      <div className={color}>
+        {icon}
+      </div>
     </div>
   </Card>
 );
 
 const AcademyDashboard: React.FC = () => {
-  const [students, setStudents] = React.useState<Student[]>([]);
-  const [academy, setAcademy] = React.useState<Academy | null>(null);
-  const [attendance, setAttendance] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const { academy, academyId, loading: academyLoading } = useAcademy();
 
-  React.useEffect(() => {
-    const init = async () => {
-      const acaId = await fetchAcademy();
-      if (acaId) {
-        await Promise.all([
-          fetchStudents(acaId),
-          fetchAttendance(acaId)
-        ]);
-      }
-      setLoading(false);
-    };
-    init();
-  }, []);
+  const { data: students = [], isLoading: studentsLoading } = useStudents(academyId);
+  const { data: attendance = [], isLoading: attendanceLoading } = useAttendance(academyId);
 
-  const fetchAttendance = async (academyId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('attendance')
-        .select('student_id, timestamp')
-        .eq('academy_id', academyId)
-        .order('timestamp', { ascending: false });
-
-      if (error) throw error;
-      setAttendance(data || []);
-    } catch (err) {
-      console.error('Error fetching attendance:', err);
-    }
-  };
-
-  const fetchAcademy = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.email) return null;
-
-      let query = supabase.from('academies').select('*');
-
-      if (session.user.email !== 'jader_dourado@hotmail.com') {
-        query = query.eq('admin_email', session.user.email);
-      }
-
-      const { data, error } = await query.limit(1).maybeSingle();
-
-      if (error) throw error;
-      if (data) {
-        setAcademy({
-          id: data.id,
-          name: data.name,
-          address: data.address,
-          contact: data.contact,
-          logoUrl: data.logo_url,
-          settings: { yellowFlagDays: data.yellow_flag_days, redFlagDays: data.red_flag_days }
-        });
-        return data.id; // Retorna o ID para o fetchStudents
-      }
-    } catch (err) {
-      console.error('Error fetching academy:', err);
-    }
-    return null;
-  };
-
-  const fetchStudents = async (academyId?: string) => {
-    try {
-      let query = supabase.from('students').select('*');
-      if (academyId) {
-        query = query.eq('academy_id', academyId);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      setStudents(data || []);
-    } catch (err) {
-      console.error('Error fetching students:', err);
-    }
-  };
+  const loading = academyLoading || studentsLoading || attendanceLoading;
 
   const totalStudents = students.length;
   const activeStudents = students.filter(s => s.status === UserStatus.ATIVO).length;
@@ -114,7 +45,7 @@ const AcademyDashboard: React.FC = () => {
     }
   });
 
-  const streaksRanking = React.useMemo(() => {
+  const streaksRanking = useMemo(() => {
     if (!students.length || !attendance.length) return [];
 
     const today = new Date().toISOString().split('T')[0];
@@ -153,7 +84,7 @@ const AcademyDashboard: React.FC = () => {
       .slice(0, 5);
   }, [students, attendance]);
 
-  if (loading) {
+  if (loading || academyLoading) {
     return (
       <div className="flex items-center justify-center p-20">
         <Loader2 className="animate-spin text-gray-400" size={48} />
@@ -164,29 +95,26 @@ const AcademyDashboard: React.FC = () => {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-black uppercase tracking-tight mb-2">Dashboard</h2>
+        <h2 className="text-2xl font-bold mb-2">Dashboard</h2>
         <p className="text-gray-500 text-sm">Summary of your academy's health today.</p>
       </div>
 
-      {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI label="Total Students" value={totalStudents} icon={<Users size={24} />} />
-        <KPI label="Active Students" value={activeStudents} icon={<UserCheck size={24} />} />
-        <KPI label="Inactive" value={inactiveStudents} icon={<UserMinus size={24} />} color="text-gray-400" />
-        <KPI label="Avg Attendance" value="--" icon={<TrendingUp size={24} />} />
+        <StatCard title="Total Students" value={totalStudents} icon={<TotalStudentsIcon size={24} className="text-indigo-500" />} color="" />
+        <StatCard title="Active Students" value={activeStudents} icon={<ActiveStudentsIcon size={24} className="text-green-500" />} color="" />
+        <StatCard title="Inactive" value={inactiveStudents} icon={<InactiveStudentsIcon size={24} className="text-slate-500" />} color="" />
+        <StatCard title="Avg Attendance" value="--" icon={<AvgAttendanceIcon size={24} className="text-blue-500" />} color="" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <KPI label="Yellow Flag" value={yellowFlags} icon={<AlertTriangle size={24} />} color="text-yellow-600" />
-        <KPI label="Red Flag" value={redFlags} icon={<AlertTriangle size={24} />} color="text-red-600" />
+        <StatCard title="Yellow Flag" value={yellowFlags} icon={<YellowFlagIcon size={24} className="text-yellow-500" />} color="" />
+        <StatCard title="Red Flag" value={redFlags} icon={<RedFlagIcon size={24} className="text-red-500" />} color="" />
       </div>
 
-      {/* Bottom Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Alertas Recentes */}
         <Card className="lg:col-span-2">
-          <div className="p-4 border-b border-gray-300 flex justify-between items-center">
-            <h3 className="text-xs font-black uppercase tracking-widest text-gray-900">Recent Alerts</h3>
+          <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-secondary)]/30">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]">Recent Alerts</h3>
             <Badge color="red">Churn Risk</Badge>
           </div>
           <div className="overflow-x-auto">
@@ -229,7 +157,6 @@ const AcademyDashboard: React.FC = () => {
           </div>
         </Card>
 
-        {/* Widgets Laterais */}
         <div className="space-y-6">
           <Card>
             <div className="p-4 border-b border-gray-300">
@@ -240,12 +167,12 @@ const AcademyDashboard: React.FC = () => {
             <div className="p-4 space-y-3">
               {streaksRanking.length > 0 ? (
                 streaksRanking.map((rank, index) => (
-                  <div key={rank.student.id} className="flex items-center justify-between p-2 rounded-xl bg-gray-50 border border-gray-100 group hover:border-orange-200 hover:bg-orange-50 transition-all">
+                  <div key={rank.student.id} className="flex items-center justify-between p-3 rounded-none bg-[var(--bg-secondary)]/50 border border-[var(--border-color)] group hover:border-orange-500/50 hover:bg-orange-500/5 transition-all">
                     <div className="flex items-center gap-3">
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${index === 0 ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-200 text-gray-500'}`}>
+                      <div className={`w-8 h-8 flex items-center justify-center text-[10px] font-black ${index === 0 ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/20' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'}`}>
                         #{index + 1}
                       </div>
-                      <span className="text-xs font-black uppercase text-gray-900">{rank.student.name}</span>
+                      <span className="text-xs font-black uppercase text-[var(--text-primary)]">{rank.student.name}</span>
                     </div>
                     <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-gray-200 shadow-sm group-hover:border-orange-300">
                       <Flame size={12} className={rank.count >= 3 ? 'text-red-500 animate-pulse' : 'text-orange-500'} />
@@ -266,7 +193,7 @@ const AcademyDashboard: React.FC = () => {
           <Card>
             <div className="p-4 border-b border-gray-300">
               <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                <Calendar size={14} className="text-blue-500" /> Birthdays this Month
+                <CalendarIcon size={14} className="text-blue-500" /> Birthdays this Month
               </h3>
             </div>
             <div className="p-2 space-y-1">
@@ -289,18 +216,20 @@ const AcademyDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Tooltip Fixo Explicativo */}
-      <div className="bg-gray-900 text-white p-4 text-[11px] font-medium leading-relaxed">
-        <p className="uppercase font-black mb-1 opacity-60">Monitoring Criteria:</p>
-        <div className="flex flex-wrap gap-6">
-          <span className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500"></div> GREEN: Frequent student (attendance in less than {academy?.settings.yellowFlagDays || 7} days)
+      <div className="bg-[var(--bg-card)] border border-[var(--border-color)] p-6 text-[10px] font-bold leading-relaxed shadow-sm">
+        <p className="uppercase font-black mb-3 text-[var(--text-primary)] tracking-widest text-[11px]">Monitoring Criteria</p>
+        <div className="flex flex-col gap-3">
+          <span className="flex items-center gap-3 text-[var(--text-secondary)]">
+            <div className="w-3 h-3 bg-green-500 shadow-lg shadow-green-500/20"></div>
+            <span className="font-black text-[var(--text-primary)]">GREEN:</span> Frequent student (attendance in less than {academy?.settings.yellowFlagDays || 7} days)
           </span>
-          <span className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-yellow-500"></div> YELLOW: {academy?.settings.yellowFlagDays || 7} to {(academy?.settings.redFlagDays || 14) - 1} days without attendance (contact now)
+          <span className="flex items-center gap-3 text-[var(--text-secondary)]">
+            <div className="w-3 h-3 bg-yellow-500 shadow-lg shadow-yellow-500/20"></div>
+            <span className="font-black text-[var(--text-primary)]">YELLOW:</span> {academy?.settings.yellowFlagDays || 7} to {(academy?.settings.redFlagDays || 14) - 1} days without (contact now)
           </span>
-          <span className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-red-500"></div> RED: {academy?.settings.redFlagDays || 14}+ days without attendance (high churn risk)
+          <span className="flex items-center gap-3 text-[var(--text-secondary)]">
+            <div className="w-3 h-3 bg-red-500 shadow-lg shadow-red-500/20"></div>
+            <span className="font-black text-[var(--text-primary)]">RED:</span> {academy?.settings.redFlagDays || 14}+ days without (high churn risk)
           </span>
         </div>
       </div>

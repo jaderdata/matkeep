@@ -7,7 +7,12 @@ import QRCode from 'react-qr-code';
 const MasterAcademyRegistration: React.FC = () => {
     const [copied, setCopied] = useState(false);
 
-    const registrationUrl = `${window.location.origin}/#/register-academy`;
+    const getBaseUrl = () => {
+        const url = window.location.href.split('#')[0];
+        return url.endsWith('/') ? url.slice(0, -1) : url;
+    };
+
+    const registrationUrl = `${getBaseUrl()}/#/register-academy`;
 
     const handleCopy = () => {
         navigator.clipboard.writeText(registrationUrl);
@@ -69,7 +74,7 @@ const MasterAcademyRegistration: React.FC = () => {
 
                         <div className="flex flex-col gap-2 w-full">
                             <Button
-                                variant="outline"
+                                variant="secondary"
                                 className="text-xs uppercase font-black tracking-widest flex items-center justify-center gap-2"
                                 onClick={() => {
                                     const svg = document.getElementById('registration-qr-code');

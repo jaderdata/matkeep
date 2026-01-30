@@ -2,7 +2,7 @@
 import React from 'react';
 import { Routes, Route, Link, Navigate } from 'react-router-dom';
 import { Card, Badge, Button } from '../components/UI';
-import { Download, User, Loader2, ChevronRight, Flame, GraduationCap, LogOut, LayoutDashboard, CreditCard, Activity, Calendar, Camera } from 'lucide-react';
+import { Download, User, Loader2, ChevronRight, Flame, GraduationCap, LogOut, LayoutDashboard, CreditCard, Activity, Calendar, Camera, Check, X, AlertCircle } from 'lucide-react';
 import { Student } from '../types';
 import { supabase } from '../services/supabase';
 import { CameraCapture } from '../components/CameraCapture';
@@ -425,7 +425,7 @@ const CardPassView = () => {
               </h3>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.2rem' }}>
                 <p style={{ fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.65em', fontStyle: 'italic', color: '#818cf8', opacity: 0.9 }}>
-                  {student.nickname || 'Student'}
+                  Student
                 </p>
               </div>
 
@@ -496,6 +496,18 @@ const ProfileView = () => {
   const [isEditing, setIsEditing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [editForm, setEditForm] = React.useState({ phone: '', birth_date: '' });
+  const [passwordForm, setPasswordForm] = React.useState({ current: '', new: '', confirm: '' });
+  const [showPasswordFields, setShowPasswordFields] = React.useState(false);
+  const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
+
+  const passwordValidation = React.useMemo(() => {
+    const { new: pass } = passwordForm;
+    return {
+      length: pass.length >= 6,
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(pass),
+      match: pass === passwordForm.confirm && pass !== ''
+    };
+  }, [passwordForm]);
 
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return '---';
@@ -526,7 +538,8 @@ const ProfileView = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('current_student_id');
-    window.location.hash = '/student/login';
+    localStorage.removeItem('student_session_key');
+    window.location.hash = '/public/register';
   };
 
   const handleUpdatePhoto = async (base64Photo: string) => {
@@ -551,13 +564,43 @@ const ProfileView = () => {
     if (!student) return;
     setSaving(true);
     try {
+      // Validate password if being changed
+      if (showPasswordFields) {
+        if (!passwordValidation.length || !passwordValidation.special) {
+          alert('Password does not meet the requirements.');
+          setSaving(false);
+          return;
+        }
+        if (passwordForm.new !== passwordForm.confirm) {
+          alert('Passwords do not match.');
+          setSaving(false);
+          return;
+        }
+
+        const { error: passError } = await supabase.from('students').update({
+          password: passwordForm.new
+        }).eq('id', student.id);
+
+        if (passError) throw passError;
+      }
+
       const { error } = await supabase.from('students').update({
         phone: editForm.phone,
         birth_date: editForm.birth_date
       }).eq('id', student.id);
       if (error) throw error;
-      setStudent({ ...student, ...editForm });
+      setStudent({ ...student, ...editForm, ...(showPasswordFields ? { password: passwordForm.new } : {}) });
       setIsEditing(false);
+
+      if (showPasswordFields) {
+        setSuccessMessage('Password updated successfully! Re-authenticating...');
+        setTimeout(() => {
+          handleLogout();
+        }, 2000);
+      }
+
+      setShowPasswordFields(false);
+      setPasswordForm({ current: '', new: '', confirm: '' });
     } catch (err) { console.error('Error:', err); } finally { setSaving(false); }
   };
 
@@ -576,6 +619,14 @@ const ProfileView = () => {
 
   return (
     <div className="max-w-xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-12">
+      {successMessage && (
+        <div className="bg-green-50 border border-green-100 p-4 rounded-[1.5rem] flex items-center justify-center gap-3 animate-in fade-in zoom-in duration-300">
+          <div className="bg-green-500 rounded-full p-1">
+            <Check size={14} className="text-white" strokeWidth={4} />
+          </div>
+          <span className="text-xs font-black uppercase tracking-widest text-green-600">{successMessage}</span>
+        </div>
+      )}
       <div className="flex flex-col items-center gap-6">
         <div
           className="relative h-40 w-40 cursor-pointer overflow-hidden rounded-[2.5rem] bg-gray-900 shadow-2xl transition-all active:scale-95 group"
@@ -639,10 +690,79 @@ const ProfileView = () => {
             <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Current Rank</span>
             <p className="text-lg font-black text-gray-900 italic tracking-tight uppercase">{student.belt} • {student.degrees}º Degree</p>
           </div>
-          <div className="h-14 w-14 rounded-[1.2rem] border-4 border-gray-900 flex items-center justify-center shadow-lg" style={{ backgroundColor: student.belt?.toLowerCase() || '#1f2937' }}>
-            <GraduationCap size={24} className="text-white" />
-          </div>
+          {(() => {
+            const styles = getBeltStyle(student.belt);
+            return (
+              <div
+                className={`h-14 w-14 rounded-[1.2rem] border-4 flex items-center justify-center shadow-lg transition-all duration-500 ${styles.bg} ${styles.border}`}
+              >
+                <GraduationCap size={24} className={styles.text} />
+              </div>
+            );
+          })()}
         </div>
+
+        {isEditing && (
+          <div className="space-y-4 pt-4 border-t border-gray-100 mt-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Security Credentials</span>
+              <button
+                type="button"
+                onClick={() => setShowPasswordFields(!showPasswordFields)}
+                className="text-[10px] font-black uppercase text-primary hover:underline"
+              >
+                {showPasswordFields ? 'Hide Password Options' : 'Change Password'}
+              </button>
+            </div>
+
+            {showPasswordFields && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="glass rounded-[1.5rem] p-5 flex flex-col gap-1 border-primary/10">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-primary">New Password</span>
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      className="bg-transparent border-none p-0 text-lg font-black text-gray-900 outline-none w-full placeholder:text-gray-200"
+                      value={passwordForm.new}
+                      onChange={e => setPasswordForm({ ...passwordForm, new: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Password Conditions */}
+                  <div className="grid grid-cols-2 gap-2 px-2">
+                    <div className={`flex items-center gap-2 text-[9px] font-black uppercase tracking-widest ${passwordValidation.length ? 'text-green-500' : 'text-red-400'}`}>
+                      {passwordValidation.length ? <Check size={12} strokeWidth={4} /> : <X size={12} strokeWidth={4} />}
+                      Min 6 Chars
+                    </div>
+                    <div className={`flex items-center gap-2 text-[9px] font-black uppercase tracking-widest ${passwordValidation.special ? 'text-green-500' : 'text-red-400'}`}>
+                      {passwordValidation.special ? <Check size={12} strokeWidth={4} /> : <X size={12} strokeWidth={4} />}
+                      1 Special Char
+                    </div>
+                  </div>
+
+                  <div className="glass rounded-[1.5rem] p-5 flex flex-col gap-1 border-primary/10">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-primary">Repeat New Password</span>
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      className="bg-transparent border-none p-0 text-lg font-black text-gray-900 outline-none w-full placeholder:text-gray-200"
+                      value={passwordForm.confirm}
+                      onChange={e => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                    />
+                  </div>
+
+                  {passwordForm.confirm !== '' && !passwordValidation.match && (
+                    <div className="flex items-center gap-2 px-2 text-[9px] font-black uppercase tracking-widest text-red-500 animate-pulse">
+                      <AlertCircle size={12} strokeWidth={4} />
+                      Passwords do not match
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="space-y-4 pt-4">
@@ -689,6 +809,42 @@ const ProfileView = () => {
       )}
     </div>
   );
+};
+
+const getBeltStyle = (belt: string) => {
+  const b = String(belt).toLowerCase();
+
+  if ((b.includes('white') || b.includes('branca')) && !b.includes(' ') && !b.includes('e'))
+    return { bg: 'bg-white', border: 'border-gray-200', text: 'text-gray-900' };
+
+  if (b.includes('gray') || b.includes('cinza'))
+    return { bg: 'bg-slate-400', border: 'border-slate-500', text: 'text-white' };
+
+  if (b.includes('yellow') || b.includes('amarela'))
+    return { bg: 'bg-yellow-400', border: 'border-yellow-500', text: 'text-black' };
+
+  if (b.includes('orange') || b.includes('laranja'))
+    return { bg: 'bg-orange-500', border: 'border-orange-600', text: 'text-white' };
+
+  if ((b.includes('green') || b.includes('verde')) && !b.includes('blue') && !b.includes('azul'))
+    return { bg: 'bg-green-600', border: 'border-green-700', text: 'text-white' };
+
+  if (b.includes('blue') || b.includes('azul'))
+    return { bg: 'bg-blue-600', border: 'border-blue-700', text: 'text-white' };
+
+  if (b.includes('purple') || b.includes('roxa'))
+    return { bg: 'bg-purple-700', border: 'border-purple-800', text: 'text-white' };
+
+  if (b.includes('brown') || b.includes('marrom'))
+    return { bg: 'bg-[#5c2d13]', border: 'border-[#3d1e0d]', text: 'text-white' };
+
+  if ((b.includes('black') || b.includes('preta')) && !b.includes('red') && !b.includes('vermelha') && !b.includes('gray') && !b.includes('cinza'))
+    return { bg: 'bg-black', border: 'border-gray-700', text: 'text-white' };
+
+  if (b.includes('red') || b.includes('vermelha'))
+    return { bg: 'bg-red-600', border: 'border-red-700', text: 'text-white' };
+
+  return { bg: 'bg-gray-900', border: 'border-black', text: 'text-white' };
 };
 
 const StudentPortal = () => {

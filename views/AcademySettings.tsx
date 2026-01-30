@@ -6,8 +6,10 @@ import { Academy } from '../types';
 import { useRef } from 'react';
 import { formatUSPhone } from '../utils';
 import { logAuditActivity, getRecentAuditLogs, getActionDisplayName, AuditLog } from '../services/auditService';
+import { useAcademy } from '../contexts/AcademyContext';
 
 const AcademySettings: React.FC = () => {
+  const { academy: ctxAcademy, academyId, loading: academyLoading, refreshAcademy } = useAcademy();
   const [academy, setAcademy] = useState<Academy | null>(null);
   const [adminEmail, setAdminEmail] = useState<string>('');
   const [isMaster, setIsMaster] = useState(false);
@@ -21,11 +23,20 @@ const AcademySettings: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchAcademy();
     fetchUser();
     setNewPassword('');
     setConfirmPassword('');
   }, []);
+
+  useEffect(() => {
+    if (ctxAcademy) {
+      setAcademy(ctxAcademy);
+      fetchAuditLogs(ctxAcademy.id);
+      setLoading(false);
+    } else if (!academyLoading) {
+      setLoading(false);
+    }
+  }, [ctxAcademy, academyLoading]);
 
   const fetchUser = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -36,44 +47,6 @@ const AcademySettings: React.FC = () => {
     }
   };
 
-  const fetchAcademy = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.email) return;
-
-      let query = supabase.from('academies').select('*');
-
-      if (session.user.email !== 'jader_dourado@hotmail.com') {
-        query = query.eq('admin_email', session.user.email);
-      }
-
-      const { data, error } = await query.limit(1).maybeSingle();
-
-      if (error) throw error;
-
-      if (data) {
-        setAcademy({
-          id: data.id,
-          name: data.name,
-          address: data.address,
-          contact: data.contact,
-          logoUrl: data.logo_url,
-          slug: data.slug,
-          settings: {
-            yellowFlagDays: data.yellow_flag_days,
-            redFlagDays: data.red_flag_days
-          }
-        });
-
-        // Fetch audit logs for this academy
-        await fetchAuditLogs(data.id);
-      }
-    } catch (err) {
-      console.error('Erro ao buscar dados da academia:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchAuditLogs = async (academyId: string) => {
     try {
@@ -135,8 +108,8 @@ const AcademySettings: React.FC = () => {
 
       setMessage({ type: 'success', text: 'Settings saved successfully!' });
 
-      // Emitir evento para atualizar o layout (opcional se houver um context)
-      window.dispatchEvent(new Event('academy_updated'));
+      // Refresh the central context
+      await refreshAcademy();
 
       // Refresh audit logs
       await fetchAuditLogs(academy.id);
@@ -179,8 +152,8 @@ const AcademySettings: React.FC = () => {
 
         setMessage({ type: 'success', text: 'Logo updated successfully!' });
 
-        // Refresh audit logs
-        await fetchAuditLogs(academy.id);
+        // Refresh central context
+        await refreshAcademy();
       };
       reader.readAsDataURL(file);
     } catch (err) {
@@ -242,7 +215,7 @@ const AcademySettings: React.FC = () => {
 
 
 
-  if (loading) {
+  if (loading || academyLoading) {
     return (
       <div className="flex items-center justify-center p-20">
         <Loader2 className="animate-spin text-gray-400" size={48} />
@@ -271,10 +244,10 @@ const AcademySettings: React.FC = () => {
               <h3 className="text-xs font-black uppercase tracking-widest text-gray-900">General Data</h3>
             </div>
             {!isMaster && (
-              <div className="p-3 bg-yellow-50 border-b border-yellow-200 flex items-center gap-2">
-                <Lock size={14} className="text-yellow-600" />
-                <p className="text-[10px] text-yellow-700 font-semibold uppercase">
-                  Academy Name and Address are restricted. Only Master profile can modify these fields.
+              <div className="p-3 bg-indigo-500/10 border-b border-indigo-500/20 flex items-center gap-3">
+                <Lock size={14} className="text-indigo-500" />
+                <p className="text-[10px] text-indigo-500 font-black uppercase tracking-widest">
+                  Academy Name and Address are restricted to Master profile.
                 </p>
               </div>
             )}
@@ -324,9 +297,9 @@ const AcademySettings: React.FC = () => {
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-700 uppercase">Current Logo</label>
+                <label className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">Current Logo</label>
                 <div className="flex items-center gap-4">
-                  <img src={academy?.logoUrl || 'https://via.placeholder.com/150'} className="w-12 h-12 border border-gray-300 object-cover" />
+                  <img src={academy?.logoUrl || 'https://via.placeholder.com/150'} className="w-14 h-14 border border-[var(--border-color)] object-cover shadow-md bg-[var(--bg-secondary)]" />
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -354,8 +327,8 @@ const AcademySettings: React.FC = () => {
             <div className="p-6 space-y-6">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
-                  <p className="text-sm font-bold text-gray-900">Yellow Flag</p>
-                  <p className="text-xs text-gray-500">Days without attendance to signal attention.</p>
+                  <p className="text-sm font-black uppercase tracking-tight text-[var(--text-primary)]">Yellow Flag</p>
+                  <p className="text-[10px] text-[var(--text-secondary)] uppercase font-bold tracking-tighter">Days without attendance to signal attention.</p>
                 </div>
                 <div className="w-24">
                   <Input
@@ -367,8 +340,8 @@ const AcademySettings: React.FC = () => {
               </div>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
-                  <p className="text-sm font-bold text-gray-900">Red Flag</p>
-                  <p className="text-xs text-gray-500">Days without attendance for high risk.</p>
+                  <p className="text-sm font-black uppercase tracking-tight text-[var(--text-primary)]">Red Flag</p>
+                  <p className="text-[10px] text-[var(--text-secondary)] uppercase font-bold tracking-tighter">Days without attendance for high risk.</p>
                 </div>
                 <div className="w-24">
                   <Input

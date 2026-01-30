@@ -150,6 +150,11 @@ const Login: React.FC = () => {
                 <p className="text-center text-[10px] text-gray-400 uppercase">
                     Access restricted to authorized administrators.
                 </p>
+
+                <div className="flex justify-center gap-4 pt-4 border-t border-gray-100">
+                    <Link to="/privacy-policy" className="text-[9px] font-bold text-gray-400 hover:text-gray-900 uppercase tracking-widest transition-colors">Privacy Policy</Link>
+                    <Link to="/terms-of-use" className="text-[9px] font-bold text-gray-400 hover:text-gray-900 uppercase tracking-widest transition-colors">Terms of Use</Link>
+                </div>
             </Card>
         </div>
     );

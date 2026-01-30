@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, Input, Button } from '../components/UI';
 import { CheckCircle, Loader2, Award, Mail, Phone, MapPin } from 'lucide-react';
 import { supabase } from '../services/supabase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { formatUSPhone } from '../utils';
 
 const AcademyWizard: React.FC = () => {
@@ -114,6 +114,7 @@ const AcademyWizard: React.FC = () => {
                                     label="Academy Name"
                                     placeholder="Ex: Gracie Barra Central"
                                     required
+                                    autoComplete="off"
                                     value={formData.academyName}
                                     onChange={e => setFormData({ ...formData, academyName: e.target.value })}
                                 />
@@ -123,6 +124,7 @@ const AcademyWizard: React.FC = () => {
                                     label="Full Address"
                                     placeholder="Street, Number, District, City - State"
                                     required
+                                    autoComplete="off"
                                     value={formData.address}
                                     onChange={e => setFormData({ ...formData, address: e.target.value })}
                                 />
@@ -131,6 +133,7 @@ const AcademyWizard: React.FC = () => {
                                 label="Phone / WhatsApp"
                                 placeholder="(000) 000-0000"
                                 required
+                                autoComplete="off"
                                 value={formData.contact}
                                 onChange={e => setFormData({ ...formData, contact: formatUSPhone(e.target.value) })}
                             />
@@ -146,6 +149,7 @@ const AcademyWizard: React.FC = () => {
                                     type="email"
                                     placeholder="admin@youracademy.com"
                                     required
+                                    autoComplete="off"
                                     value={formData.adminEmail}
                                     onChange={e => setFormData({ ...formData, adminEmail: e.target.value })}
                                 />
@@ -155,6 +159,7 @@ const AcademyWizard: React.FC = () => {
                                 type="password"
                                 placeholder="••••••••"
                                 required
+                                autoComplete="new-password"
                                 value={formData.adminPassword}
                                 onChange={e => setFormData({ ...formData, adminPassword: e.target.value })}
                             />
@@ -163,6 +168,7 @@ const AcademyWizard: React.FC = () => {
                                 type="password"
                                 placeholder="••••••••"
                                 required
+                                autoComplete="new-password"
                                 value={formData.confirmPassword}
                                 onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
                             />
@@ -175,7 +181,7 @@ const AcademyWizard: React.FC = () => {
                             {loading ? 'Creating your Academy...' : 'Register Academy and Access'}
                         </Button>
                         <p className="text-center text-[9px] text-gray-400 mt-6 uppercase font-bold tracking-widest leading-loose">
-                            By clicking register, you confirm you are legally responsible for the unit and accept our professional terms of use.
+                            By clicking register, you confirm you are legally responsible for the unit and accept our <Link to="/terms-of-use" className="underline hover:text-gray-600">professional terms of use</Link> and <Link to="/privacy-policy" className="underline hover:text-gray-600">privacy policy</Link>.
                         </p>
                     </div>
                 </form>

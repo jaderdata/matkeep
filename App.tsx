@@ -1,7 +1,10 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { LayoutDashboard, Users, FileText, Settings, LogOut, ChevronRight, User, GraduationCap, CreditCard, Activity, Loader2, UserPlus, Building2, QrCode } from 'lucide-react';
+import { ChevronRight, User, GraduationCap, CreditCard, Activity, Loader2, Building2, LogOut, Moon, Sun } from 'lucide-react';
+import { DashboardIcon, StudentsIcon, StudentRegistrationIcon, CalendarIcon, CheckInIcon, ReportsIcon, SettingsIcon } from './components/CustomIcons';
+
 import AcademyDashboard from './views/AcademyDashboard';
 import StudentManagement from './views/StudentManagement';
 import AcademySettings from './views/AcademySettings';
@@ -16,8 +19,11 @@ import { MasterLayout } from './views/Master/MasterLayout';
 import MasterDashboard from './views/Master/MasterDashboard';
 import MasterAcademyList from './views/Master/MasterAcademyList';
 import MasterAcademyRegistration from './views/Master/MasterAcademyRegistration';
+import PrivacyPolicy from './views/PrivacyPolicy';
+import TermsOfUse from './views/TermsOfUse';
 import ForgotPassword from './views/ForgotPassword';
 import StudentCheckIn from './views/StudentCheckIn';
+import AcademyCalendar from './views/AcademyCalendar';
 import { PWAManager } from './components/PWAManager';
 import { supabase } from './services/supabase';
 import { Academy } from './types';
@@ -31,9 +37,9 @@ const SidebarLink: React.FC<{ to: string; icon: React.ReactNode; label: string }
     <Link
       to={to}
       title={label || undefined}
-      className={`flex items-center ${label ? 'gap-3' : 'justify-center'} px-4 py-3 text-sm font-medium border-l-4 transition-colors ${isActive
-        ? 'bg-gray-100 border-gray-900 text-gray-900'
-        : 'border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+      className={`flex items-center ${label ? 'gap-3' : 'justify-center'} px-4 py-2.5 text-sm font-normal border-l-3 transition-all duration-200 ${isActive
+        ? 'bg-[var(--bg-secondary)] border-[var(--text-primary)] text-[var(--text-primary)] font-medium'
+        : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
         }`}
     >
       {icon}
@@ -44,7 +50,14 @@ const SidebarLink: React.FC<{ to: string; icon: React.ReactNode; label: string }
 
 // Redirect handler for unprotected routes when logged in
 const AuthRedirect: React.FC<{ session: any; children: React.ReactNode }> = ({ session, children }) => {
-  if (session) return <Navigate to="/academy/dashboard" replace />;
+  if (session) {
+    // If it's the master admin, don't auto-redirect to academy dashboard 
+    // because they might be testing public links.
+    if (session.user.email === 'jader_dourado@hotmail.com') {
+      return <>{children}</>;
+    }
+    return <Navigate to="/academy/dashboard" replace />;
+  }
   return <>{children}</>;
 };
 
@@ -62,13 +75,21 @@ const RequireMasterAuth: React.FC<{ session: any; children: React.ReactNode }> =
   return <>{children}</>;
 };
 
+import { AcademyProvider, useAcademy } from './contexts/AcademyContext';
+
 const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [academy, setAcademy] = useState<Academy | null>(null);
+  const { academy, loading } = useAcademy();
   const [user, setUser] = useState<{ email?: string; role?: string } | null>(null);
-  const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isHidden, setIsHidden] = useState(true); // Auto-hide state
+  const [theme, setTheme] = useState<'light' | 'dark'>(localStorage.getItem('theme') as 'light' | 'dark' || 'light');
   const SYSTEM_VERSION = 'v1.0.13';
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -76,54 +97,6 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    const fetchAcademy = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user?.email) return;
-
-        if (session.user.email === 'jader_dourado@hotmail.com') {
-          const actingId = localStorage.getItem('master_acting_as_academy_id');
-          if (!actingId) {
-            window.location.href = '/#/master/dashboard';
-            return;
-          }
-        }
-
-        const actingId = localStorage.getItem('master_acting_as_academy_id');
-        let query = supabase.from('academies').select('*');
-
-        if (session.user.email === 'jader_dourado@hotmail.com' && actingId) {
-          query = query.eq('id', actingId);
-        } else {
-          query = query.eq('admin_email', session.user.email);
-        }
-
-        const { data, error } = await query.limit(1).maybeSingle();
-
-        if (error) throw error;
-        if (data) {
-          setAcademy({
-            id: data.id,
-            name: data.name,
-            address: data.address,
-            contact: data.contact,
-            logoUrl: data.logo_url,
-            slug: data.slug,
-            subscription_plan: data.subscription_plan,
-            trial_start_date: data.trial_start_date,
-            trial_end_date: data.trial_end_date,
-            settings: { yellowFlagDays: data.yellow_flag_days, redFlagDays: data.red_flag_days }
-          });
-        }
-      } catch (err) {
-        console.error('Error fetching academy:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAcademy();
 
     const fetchUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -133,10 +106,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     };
     fetchUser();
 
-    // Listen for updates from settings
-    window.addEventListener('academy_updated', fetchAcademy);
     return () => {
-      window.removeEventListener('academy_updated', fetchAcademy);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -145,11 +115,26 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-gray-300" size={48} /></div>;
 
   return (
-    <div className="flex min-h-screen bg-white print:block">
+    <div className="flex min-h-screen bg-[var(--bg-primary)] print:block">
       <PWAManager academy={academy} />
+
+      {/* Toggle Button - Always visible */}
+      <button
+        onClick={() => setIsHidden(!isHidden)}
+        onMouseEnter={() => setIsHidden(false)}
+        className={`fixed top-4 ${isHidden ? 'left-4' : isCollapsed ? 'left-24' : 'left-[272px]'} z-50 p-3 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 print:hidden hover:scale-110 active:scale-95`}
+        title={isHidden ? "Show Menu" : "Hide Menu"}
+      >
+        <div className={`w-5 h-0.5 bg-[var(--text-primary)] relative transition-all duration-300 ${!isHidden ? 'rotate-45 translate-y-1.5' : ''} after:absolute after:top-1.5 after:left-0 after:w-5 after:h-0.5 after:bg-[var(--text-primary)] ${!isHidden ? 'after:opacity-0' : ''} before:absolute before:-top-1.5 before:left-0 before:w-5 before:h-0.5 before:bg-[var(--text-primary)] ${!isHidden ? 'before:-rotate-90 before:translate-y-1.5' : ''} transition-all duration-300`}></div>
+      </button>
+
       {/* Sidebar */}
-      <aside className={`${isCollapsed ? 'w-20' : 'w-64'} border-r border-gray-300 flex flex-col h-screen sticky top-0 bg-white z-20 transition-all duration-300 print:hidden`}>
-        <div className={`p-6 border-b border-gray-300 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+      <aside
+        onMouseEnter={() => setIsHidden(false)}
+        onMouseLeave={() => setIsHidden(true)}
+        className={`${isCollapsed ? 'w-20' : 'w-64'} ${isHidden ? '-translate-x-full' : 'translate-x-0'} border-r border-[var(--border-color)] flex flex-col h-screen fixed top-0 left-0 bg-[var(--bg-card)] z-40 transition-all duration-300 print:hidden shadow-[var(--shadow-md)]`}
+      >
+        <div className={`p-6 border-b border-[var(--border-color)] flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           {!isCollapsed && (
             <div className="flex items-center gap-2 overflow-hidden">
               <div className="w-8 h-8 bg-gray-900 flex items-center justify-center text-white font-bold text-xl shrink-0">M</div>
@@ -158,27 +143,38 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           )}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1 hover:bg-gray-100 rounded-md transition-colors"
+            className="p-2 hover:bg-[var(--bg-secondary)] rounded-md transition-all active:scale-90"
           >
-            {isCollapsed ? <ChevronRight size={20} /> : <div className="w-5 h-0.5 bg-gray-900 relative after:absolute after:top-1.5 after:left-0 after:w-5 after:h-0.5 after:bg-gray-900 before:absolute before:-top-1.5 before:left-0 before:w-5 before:h-0.5 before:bg-gray-900"></div>}
+            {isCollapsed ? <ChevronRight size={20} /> : <div className="w-5 h-0.5 bg-[var(--text-primary)] relative after:absolute after:top-1.5 after:left-0 after:w-5 after:h-0.5 after:bg-[var(--text-primary)] before:absolute before:-top-1.5 before:left-0 before:w-5 before:h-0.5 before:bg-[var(--text-primary)] transition-ui"></div>}
           </button>
         </div>
 
         <nav className="flex-1 py-4">
-          <SidebarLink to="/academy/dashboard" icon={<LayoutDashboard size={20} />} label={isCollapsed ? "" : "Dashboard"} />
-          <SidebarLink to="/academy/students" icon={<Users size={20} />} label={isCollapsed ? "" : "Students"} />
-          <SidebarLink to="/academy/registration-link" icon={<UserPlus size={20} />} label={isCollapsed ? "" : "Student Registration"} />
-          <SidebarLink to="/check-in" icon={<QrCode size={20} />} label={isCollapsed ? "" : "Check-In Kiosk"} />
-          <SidebarLink to="/academy/reports" icon={<FileText size={20} />} label={isCollapsed ? "" : "Reports"} />
-          <SidebarLink to="/academy/settings" icon={<Settings size={20} />} label={isCollapsed ? "" : "Settings"} />
+          <SidebarLink to="/academy/dashboard" icon={<DashboardIcon size={20} />} label={isCollapsed ? "" : "Dashboard"} />
+          <SidebarLink to="/academy/students" icon={<StudentsIcon size={20} />} label={isCollapsed ? "" : "Students"} />
+          <SidebarLink to="/academy/registration-link" icon={<StudentRegistrationIcon size={20} />} label={isCollapsed ? "" : "Student Registration"} />
+          <SidebarLink to="/academy/calendar" icon={<CalendarIcon size={20} />} label={isCollapsed ? "" : "Academy Calendar"} />
+          <SidebarLink to="/check-in" icon={<CheckInIcon size={20} />} label={isCollapsed ? "" : "Check-In Kiosk"} />
+          <SidebarLink to="/academy/reports" icon={<ReportsIcon size={20} />} label={isCollapsed ? "" : "Reports"} />
+          <SidebarLink to="/academy/settings" icon={<SettingsIcon size={20} />} label={isCollapsed ? "" : "Settings"} />
         </nav>
 
-        <div className="p-4 border-t border-gray-300 overflow-hidden">
+        <div className="p-4 border-t border-[var(--border-color)] overflow-hidden space-y-2">
+          {/* Theme Toggle Button */}
+          <button
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            className={`flex items-center gap-3 px-4 py-2 w-full text-xs font-black uppercase tracking-widest hover:bg-[var(--bg-secondary)] transition-all rounded-md ${isCollapsed ? 'justify-center' : ''}`}
+            title={`Alternar para modo ${theme === 'light' ? 'escuro' : 'claro'}`}
+          >
+            {theme === 'light' ? <Moon size={18} className="text-indigo-500" /> : <Sun size={18} className="text-amber-400" />}
+            {!isCollapsed && <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>}
+          </button>
+
           <div className={`flex items-center gap-3 px-2 py-2 mb-2 ${isCollapsed ? 'justify-center' : ''}`}>
             {academy?.logoUrl ? (
-              <img src={academy.logoUrl} alt="Logo" className="w-8 h-8 bg-gray-200 border border-gray-300 object-cover shrink-0" />
+              <img src={academy.logoUrl} alt="Logo" className="w-8 h-8 bg-[var(--bg-secondary)] border border-[var(--border-color)] object-cover shrink-0 shadow-sm" />
             ) : (
-              <div className="w-8 h-8 bg-gray-900 flex items-center justify-center text-white text-[10px] font-bold shrink-0">M</div>
+              <div className="w-8 h-8 bg-[var(--text-primary)] text-[var(--bg-primary)] flex items-center justify-center text-[10px] font-black shrink-0">M</div>
             )}
             {!isCollapsed && (
               <div className="flex flex-col overflow-hidden">
@@ -199,9 +195,10 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <button
               onClick={() => {
                 localStorage.removeItem('master_acting_as_academy_id');
+                window.dispatchEvent(new CustomEvent('academy_updated'));
                 window.location.href = '/#/master/dashboard';
               }}
-              className={`flex items-center gap-3 px-4 py-2 w-full text-sm font-black text-amber-600 hover:bg-amber-100 transition-colors border border-amber-400 mb-2 uppercase tracking-tighter ${isCollapsed ? 'justify-center' : ''}`}
+              className={`flex items-center gap-3 px-4 py-2 w-full text-[10px] font-black text-amber-500 hover:bg-amber-500/10 transition-all border border-amber-500/30 mb-2 uppercase tracking-widest rounded-md ${isCollapsed ? 'justify-center' : ''}`}
               title="Back to Master"
             >
               <Building2 size={18} />
@@ -213,7 +210,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               localStorage.removeItem('master_acting_as_academy_id');
               supabase.auth.signOut();
             }}
-            className={`flex items-center gap-3 px-4 py-2 w-full text-sm font-medium text-red-600 hover:bg-red-50 transition-colors border border-transparent ${isCollapsed ? 'justify-center' : ''}`}
+            className={`flex items-center gap-3 px-4 py-2 w-full text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-all rounded-md ${isCollapsed ? 'justify-center' : ''}`}
             title="Logout"
           >
             <LogOut size={18} />
@@ -223,29 +220,10 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden print:overflow-visible print:block">
-        <header className="h-16 border-b border-gray-300 bg-white flex items-center px-8 sticky top-0 z-10 shrink-0 print:hidden">
-          <div className="flex items-center gap-4">
-            <h1 className="text-sm font-bold uppercase tracking-widest text-gray-400">Academy Portal</h1>
-            {!isOnline && (
-              <div className="flex items-center gap-2 bg-amber-50 text-amber-700 px-3 py-1 text-[10px] font-black uppercase border border-amber-100 animate-pulse">
-                <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
-                Offline Mode Active
-              </div>
-            )}
-          </div>
-          <div className="ml-auto flex items-center gap-4">
-            <Link
-              target="_blank"
-              to={`/public/register/${academy?.slug || academy?.id || ''}`}
-              className="text-xs font-bold text-blue-600 hover:underline"
-            >
-              Public Registration Link
-            </Link>
-          </div>
-        </header>
+      <main className="flex-1 flex flex-col overflow-hidden print:overflow-visible print:block bg-[var(--bg-primary)]">
+
         <TrialBanner academy={academy} />
-        <div className="p-8 flex-1 overflow-y-auto print:p-0 print:overflow-visible">
+        <div className="p-8 flex-1 overflow-y-auto print:p-0 print:overflow-visible animate-in fade-in slide-in-from-bottom-2 duration-500">
           {children}
         </div>
       </main>
@@ -261,9 +239,20 @@ const StudentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   useEffect(() => {
     const fetchAcademyForStudent = async () => {
       const studentId = localStorage.getItem('current_student_id');
+      const sessionKey = localStorage.getItem('student_session_key');
       if (!studentId) return;
       try {
-        const { data: student } = await supabase.from('students').select('academy_id').eq('id', studentId).single();
+        const { data: student } = await supabase.from('students').select('academy_id, password').eq('id', studentId).single();
+
+        // Security check: if password has changed since login, force logout
+        const currentKey = btoa(student?.password || '').substring(0, 10);
+        if (sessionKey && currentKey !== sessionKey) {
+          localStorage.removeItem('current_student_id');
+          localStorage.removeItem('student_session_key');
+          window.location.hash = '/student/login';
+          return;
+        }
+
         if (student?.academy_id) {
           const { data: academyData } = await supabase.from('academies').select('*').eq('id', student.academy_id).single();
           if (academyData) setAcademy({
@@ -281,7 +270,7 @@ const StudentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   }, []);
 
   const navItems = [
-    { label: 'Home', path: '/student/dashboard', icon: <LayoutDashboard size={22} /> },
+    { label: 'Home', path: '/student/dashboard', icon: <DashboardIcon size={22} /> },
     { label: 'Card', path: '/student/card', icon: <CreditCard size={22} /> },
     { label: 'Profile', path: '/student/profile', icon: <User size={22} /> },
   ];
@@ -378,45 +367,52 @@ const App: React.FC = () => {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-gray-300" size={48} /></div>;
 
   return (
-    <HashRouter>
-      <Routes>
-        {/* Public Auth Routes */}
-        <Route path="/login" element={<AuthRedirect session={session}><Login /></AuthRedirect>} />
-        <Route path="/forgot-password" element={<AuthRedirect session={session}><ForgotPassword /></AuthRedirect>} />
-        <Route path="/check-in" element={<RequireAuth session={session}><StudentCheckIn /></RequireAuth>} />
-        <Route path="/register-academy" element={<AuthRedirect session={session}><AcademyWizard /></AuthRedirect>} />
+    <AcademyProvider>
+      <HashRouter>
+        <Routes>
+          {/* Public Auth Routes */}
+          <Route path="/login" element={<AuthRedirect session={session}><Login /></AuthRedirect>} />
+          <Route path="/forgot-password" element={<AuthRedirect session={session}><ForgotPassword /></AuthRedirect>} />
+          <Route path="/check-in" element={<RequireAuth session={session}><StudentCheckIn /></RequireAuth>} />
+          <Route path="/register-academy" element={<AuthRedirect session={session}><AcademyWizard /></AuthRedirect>} />
 
-        {/* Master Admin Routes */}
-        <Route path="/master" element={<RequireMasterAuth session={session}><MasterLayout><Navigate to="/master/dashboard" replace /></MasterLayout></RequireMasterAuth>} />
-        <Route path="/master/dashboard" element={<RequireMasterAuth session={session}><MasterLayout><MasterDashboard /></MasterLayout></RequireMasterAuth>} />
-        <Route path="/master/academies" element={<RequireMasterAuth session={session}><MasterLayout><MasterAcademyList /></MasterLayout></RequireMasterAuth>} />
-        <Route path="/master/registration-link" element={<RequireMasterAuth session={session}><MasterLayout><MasterAcademyRegistration /></MasterLayout></RequireMasterAuth>} />
+          {/* Master Admin Routes */}
+          <Route path="/master" element={<RequireMasterAuth session={session}><MasterLayout><Navigate to="/master/dashboard" replace /></MasterLayout></RequireMasterAuth>} />
+          <Route path="/master/dashboard" element={<RequireMasterAuth session={session}><MasterLayout><MasterDashboard /></MasterLayout></RequireMasterAuth>} />
+          <Route path="/master/academies" element={<RequireMasterAuth session={session}><MasterLayout><MasterAcademyList /></MasterLayout></RequireMasterAuth>} />
+          <Route path="/master/registration-link" element={<RequireMasterAuth session={session}><MasterLayout><MasterAcademyRegistration /></MasterLayout></RequireMasterAuth>} />
 
-        {/* Academy Private Routes */}
-        <Route path="/academy" element={<RequireAuth session={session}><AcademyLayout><Navigate to="/academy/dashboard" replace /></AcademyLayout></RequireAuth>} />
-        <Route path="/academy/dashboard" element={<RequireAuth session={session}><AcademyLayout><AcademyDashboard /></AcademyLayout></RequireAuth>} />
-        <Route path="/academy/students" element={<RequireAuth session={session}><AcademyLayout><StudentManagement /></AcademyLayout></RequireAuth>} />
-        <Route path="/academy/registration-link" element={<RequireAuth session={session}><AcademyLayout><AcademyRegistrationLink /></AcademyLayout></RequireAuth>} />
-        <Route path="/academy/reports" element={<RequireAuth session={session}><AcademyLayout><AcademyReports /></AcademyLayout></RequireAuth>} />
-        <Route path="/academy/settings" element={<RequireAuth session={session}><AcademyLayout><AcademySettings /></AcademyLayout></RequireAuth>} />
+          {/* Academy Private Routes */}
+          <Route path="/academy" element={<RequireAuth session={session}><AcademyLayout><Navigate to="/academy/dashboard" replace /></AcademyLayout></RequireAuth>} />
+          <Route path="/academy/dashboard" element={<RequireAuth session={session}><AcademyLayout><AcademyDashboard /></AcademyLayout></RequireAuth>} />
+          <Route path="/academy/students" element={<RequireAuth session={session}><AcademyLayout><StudentManagement /></AcademyLayout></RequireAuth>} />
+          <Route path="/academy/registration-link" element={<RequireAuth session={session}><AcademyLayout><AcademyRegistrationLink /></AcademyLayout></RequireAuth>} />
+          <Route path="/academy/calendar" element={<RequireAuth session={session}><AcademyLayout><AcademyCalendar /></AcademyLayout></RequireAuth>} />
+          <Route path="/academy/reports" element={<RequireAuth session={session}><AcademyLayout><AcademyReports /></AcademyLayout></RequireAuth>} />
+          <Route path="/academy/settings" element={<RequireAuth session={session}><AcademyLayout><AcademySettings /></AcademyLayout></RequireAuth>} />
 
-        {/* Student Portal (Unprotected for now or has its own auth) */}
-        <Route path="/student/login" element={<StudentLogin />} />
-        <Route path="/student/*" element={<StudentLayout><StudentPortal /></StudentLayout>} />
+          {/* Student Portal (Unprotected for now or has its own auth) */}
+          <Route path="/student/login" element={<StudentLogin />} />
+          <Route path="/student/*" element={<StudentLayout><StudentPortal /></StudentLayout>} />
 
-        {/* Public Registration */}
-        <Route path="/public/register" element={<PublicRegistration />} />
-        <Route path="/public/register/:academyId" element={<PublicRegistration />} />
+          {/* Public Registration */}
+          <Route path="/public/register" element={<PublicRegistration />} />
+          <Route path="/public/register/:academyId" element={<PublicRegistration />} />
 
-        {/* Default Redirect */}
-        <Route path="/" element={
-          session
-            ? (session.user.email === 'jader_dourado@hotmail.com' ? <Navigate to="/master/dashboard" replace /> : <Navigate to="/academy/dashboard" replace />)
-            : <Navigate to="/login" replace />
-        } />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </HashRouter>
+          {/* Legal Routes */}
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-of-use" element={<TermsOfUse />} />
+
+          {/* Default Redirect */}
+          <Route path="/" element={
+            session
+              ? (session.user.email === 'jader_dourado@hotmail.com' ? <Navigate to="/master/dashboard" replace /> : <Navigate to="/academy/dashboard" replace />)
+              : <Navigate to="/login" replace />
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </HashRouter>
+    </AcademyProvider>
   );
 };
 
