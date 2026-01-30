@@ -241,6 +241,20 @@ const PublicRegistration: React.FC = () => {
         throw new Error('Passwords do not match');
       }
 
+      // Check for existing student with same email in this academy
+      const { data: existingStudent, error: checkError } = await supabase
+        .from('students')
+        .select('id')
+        .eq('email', formData.email)
+        .eq('academy_id', academy?.id) // Optional: restrict to same academy or globally? Usually email should be unique globally or per academy. Let's assume per academy for now or just warn.
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingStudent) {
+        throw new Error('A student with this email already exists. Please login instead.');
+      }
+
       if (!navigator.onLine) {
         await offlineService.saveAction('students', studentData);
         setStep(2);

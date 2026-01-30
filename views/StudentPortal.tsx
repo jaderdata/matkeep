@@ -96,6 +96,31 @@ const StudentDashboard = () => {
 
   React.useEffect(() => {
     fetchStudent();
+
+    const id = localStorage.getItem('current_student_id');
+    if (!id) return;
+
+    const channel = supabase
+      .channel('student_dashboard_updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'students',
+          filter: `id=eq.${id}`
+        },
+        (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            setStudent(payload.new as Student);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchStudent = async () => {
@@ -520,7 +545,36 @@ const ProfileView = () => {
     }
   };
 
-  React.useEffect(() => { fetchStudent(); }, []);
+  React.useEffect(() => {
+    fetchStudent();
+
+    const id = localStorage.getItem('current_student_id');
+    if (!id) return;
+
+    const channel = supabase
+      .channel('profile_view_updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'students',
+          filter: `id=eq.${id}`
+        },
+        (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            setStudent(payload.new as Student);
+            // Update edit form if needed, or just let user see new data in non-edit mode
+            // We won't overwrite editForm while they are editing to avoid data loss/jumpiness
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const fetchStudent = async () => {
     const id = localStorage.getItem('current_student_id');

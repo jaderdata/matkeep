@@ -385,7 +385,10 @@ const StudentManagement: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
                       <span className="font-bold text-[var(--text-primary)]">{student.name}</span>
-                      <span className="text-[10px] uppercase font-black tracking-tighter text-[var(--text-secondary)]">{student.phone}</span>
+                      <div className="flex gap-2 text-[10px] uppercase font-black tracking-tighter text-[var(--text-secondary)]">
+                        <span>{student.phone}</span>
+                        {student.internal_id && <span className="text-[var(--accent-primary)]">#{student.internal_id}</span>}
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
