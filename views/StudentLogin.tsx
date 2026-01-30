@@ -34,15 +34,11 @@ const StudentLogin: React.FC = () => {
 
         try {
             const cleanIdentifier = identifier.trim();
-            let query = supabase.from('students').select('id, academy_id');
 
-            if (cleanIdentifier.includes('@')) {
-                query = query.ilike('email', cleanIdentifier);
-            } else {
-                query = query.or(`card_pass_code.ilike.${cleanIdentifier}, internal_id.ilike.${cleanIdentifier} `);
-            }
 
-            const { data, error: fetchError } = await query;
+            // Use Secure RPC to identify student without public table access
+            const { data, error: fetchError } = await supabase
+                .rpc('identify_student', { p_identifier: cleanIdentifier });
 
             if (fetchError) throw fetchError;
 
@@ -52,22 +48,16 @@ const StudentLogin: React.FC = () => {
                 return;
             }
 
-            // Buscar detalhes das academias
-            const academyIds = data.map(s => s.academy_id).filter(Boolean);
-            const { data: academies } = await supabase
-                .from('academies')
-                .select('id, name, logo_url, address')
-                .in('id', academyIds);
+            // Map RPC result to component state
+            const enrichedStudents: MatchingStudent[] = data.map((s: any) => ({
+                id: s.student_id,
+                academy_id: s.academy_id,
+                academy_name: s.academy_name,
+                academy_logo: s.logo_url,
+                academy_address: s.academy_address
+            }));
 
-            const enrichedStudents = data.map(student => {
-                const academy = academies?.find(a => a.id === student.academy_id);
-                return {
-                    ...student,
-                    academy_name: academy?.name || 'Academy',
-                    academy_logo: academy?.logo_url,
-                    academy_address: academy?.address
-                };
-            });
+
 
             setMatchingStudents(enrichedStudents);
 

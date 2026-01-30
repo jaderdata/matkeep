@@ -1,4 +1,5 @@
 
+import { useQueryClient } from '@tanstack/react-query';
 import React, { useState, useEffect } from 'react';
 import { Card, Badge, Button } from '../../components/UI';
 import { supabase } from '../../services/supabase';
@@ -9,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 
 const MasterAcademyList: React.FC = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [academies, setAcademies] = useState<Academy[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -47,8 +49,21 @@ const MasterAcademyList: React.FC = () => {
         }
     };
 
-    const handleManage = (academyId: string) => {
+    const handleManage = async (academyId: string) => {
         localStorage.setItem('master_acting_as_academy_id', academyId);
+
+        // Critical: Reset all queries to ensure no data from previous academy leaks
+        await queryClient.cancelQueries();
+        queryClient.removeQueries();
+
+        // Force immediate invalidation of the primary keys
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['academy'] }),
+            queryClient.invalidateQueries({ queryKey: ['students'] }),
+            queryClient.invalidateQueries({ queryKey: ['attendance'] }),
+            queryClient.invalidateQueries({ queryKey: ['events'] })
+        ]);
+
         window.dispatchEvent(new CustomEvent('academy_updated'));
         navigate('/academy/dashboard');
     };

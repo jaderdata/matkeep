@@ -227,7 +227,7 @@ const PublicRegistration: React.FC = () => {
       password: formData.password,
       status: UserStatus.ATIVO,
       flag: FlagStatus.VERDE,
-      card_pass_code: 'MK-' + Math.floor(Math.random() * 1000).toString().padStart(3, '0'),
+      card_pass_code: 'MK-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0'),
       academy_id: academy?.id,
       photo_url: formData.photo
     };
@@ -320,7 +320,7 @@ const PublicRegistration: React.FC = () => {
             <h1 className="text-2xl font-black uppercase tracking-tight text-gray-900">Academy Not Found</h1>
             <p className="text-gray-500 text-sm">The registration link you used is invalid or outdated. Please request a new link or scan the QR code at your academy.</p>
           </div>
-          <Button className="w-full" onClick={() => window.location.hash = '/login'}>Go to Login</Button>
+          <Button className="w-full" onClick={() => window.location.hash = '/student/login'}>Go to Student Login</Button>
         </Card>
       </div>
     );

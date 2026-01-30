@@ -6,8 +6,10 @@ import { Loader2, QrCode, CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
 import { attendanceService } from '../services/attendanceService';
 import { supabase } from '../services/supabase';
 import { Student } from '../types';
+import { useAcademy } from '../contexts/AcademyContext';
 
 const StudentCheckIn: React.FC = () => {
+    const { academy } = useAcademy();
     const [code, setCode] = useState('');
     const [lastScannedCode, setLastScannedCode] = useState('');
     const [debugLog, setDebugLog] = useState<string>('');
@@ -40,8 +42,19 @@ const StudentCheckIn: React.FC = () => {
             setStatus('loading');
             setMessage('Processing...');
 
-            // Call Service
-            const result = await attendanceService.registerAttendance(code);
+            // Call Service with STRICT SCOPING
+            // If academy is not loaded yet, we should probably block or warn, 
+            // but for now we pass undefined if null which might fallback to unsafe behavior 
+            // unless service handles it. Service DOES NOT enforce if undefined.
+            // So we must ensure academy.id is present.
+
+            if (!academy?.id) {
+                setStatus('error');
+                setMessage('System Error: No Active Academy Context.');
+                return;
+            }
+
+            const result = await attendanceService.registerAttendance(code, academy.id);
 
             if (result.success) {
                 setStatus('success');
@@ -71,11 +84,21 @@ const StudentCheckIn: React.FC = () => {
         let logs = [`Time: ${new Date().toLocaleTimeString()}`, `Checking for code: "${codeToCheck}"`];
 
         try {
-            const { data, error } = await supabase.from('students').select('*').eq('card_pass_code', codeToCheck);
+            const { data, error } = await supabase
+                .from('students')
+                .select('*')
+                .eq('card_pass_code', codeToCheck)
+                .eq('academy_id', academy?.id || '');
 
             let found = data?.length || 0;
             if (found === 0 && /^\d+$/.test(codeToCheck)) {
-                const { data: byId } = await supabase.from('students').select('*').eq('internal_id', parseInt(codeToCheck));
+                // Check internal_id with scope
+                const { data: byId } = await supabase
+                    .from('students')
+                    .select('*')
+                    .eq('internal_id', parseInt(codeToCheck))
+                    .eq('academy_id', academy?.id || ''); // Strict Scope
+
                 if (byId && byId.length > 0) {
                     logs.push(`Found match by internal_id: ${byId[0].name}`);
                     found = byId.length;

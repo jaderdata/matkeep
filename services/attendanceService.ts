@@ -9,16 +9,19 @@ export interface AttendanceResult {
 }
 
 export const attendanceService = {
-    async registerAttendance(code: string, excludeCooldown: boolean = false): Promise<AttendanceResult> {
+    async registerAttendance(code: string, academyId?: string, excludeCooldown: boolean = false): Promise<AttendanceResult> {
         try {
             // 1. Find Student
-            // 1. Find Student
             let student = null;
+            let query = supabase.from('students').select('*');
+
+            // STRICT ISOLATION: If academyId is provided, enforce it.
+            if (academyId) {
+                query = query.eq('academy_id', academyId);
+            }
 
             // First try strict match on card_pass_code
-            const { data: byCode, error: codeError } = await supabase
-                .from('students')
-                .select('*')
+            const { data: byCode } = await query
                 .eq('card_pass_code', code)
                 .maybeSingle();
 
@@ -26,11 +29,15 @@ export const attendanceService = {
                 student = byCode;
             } else if (/^\d+$/.test(code)) {
                 // If not found and code is numeric, try internal_id (legacy/fallback)
-                const { data: byId, error: idError } = await supabase
-                    .from('students')
-                    .select('*')
+                // We must rebuild the query to ensure isolation is applied again
+                let idQuery = supabase.from('students').select('*');
+                if (academyId) {
+                    idQuery = idQuery.eq('academy_id', academyId);
+                }
+
+                const { data: byId } = await idQuery
                     .eq('internal_id', parseInt(code))
-                    .maybeSingle(); // Use maybeSingle to avoid 406 if generic
+                    .maybeSingle();
 
                 if (byId) student = byId;
             }

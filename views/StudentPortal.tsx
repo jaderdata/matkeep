@@ -148,14 +148,45 @@ const StudentDashboard = () => {
 
   const fetchStudent = async () => {
     const id = localStorage.getItem('current_student_id');
+    const sessionKey = localStorage.getItem('student_session_key');
     if (!id) { setLoading(false); return; }
+
     try {
-      const { data, error } = await supabase.from('students').select('*').eq('id', id).single();
+      // Use Secure RPC for profile fetch
+      const { data, error } = await supabase
+        .rpc('get_student_profile', {
+          p_student_id: id,
+          p_session_key: sessionKey || ''
+        })
+        .maybeSingle();
+
       if (error) throw error;
-      setStudent(data);
-      const { data: attendanceData } = await supabase.from('attendance').select('*').eq('student_id', id).order('timestamp', { ascending: false });
+
+      if (!data) {
+        // If RPC returns null, it means ID/Key mismatch or student inactive
+        console.warn("Session invalid or student not found via RPC");
+        localStorage.removeItem('current_student_id');
+        localStorage.removeItem('student_session_key');
+        // Allow redirect to happen in effect or next render
+        setStudent(null);
+        return;
+      }
+
+      setStudent(data as Student);
+
+      // Fetch attendance (Policy allows public read, so this is fine)
+      const { data: attendanceData } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('student_id', id)
+        .order('timestamp', { ascending: false });
+
       setAttendance(attendanceData || []);
-    } catch (err) { console.error('Error:', err); } finally { setLoading(false); }
+    } catch (err) {
+      console.error('Error fetching student:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) return <div className="flex items-center justify-center p-20 min-h-[60vh]"><Loader2 className="animate-spin text-primary" size={48} /></div>;
@@ -611,7 +642,7 @@ const ProfileView = () => {
   const handleLogout = () => {
     localStorage.removeItem('current_student_id');
     localStorage.removeItem('student_session_key');
-    window.location.hash = '/public/register';
+    window.location.hash = '/student/login';
   };
 
   const handleUpdatePhoto = async (base64Photo: string) => {

@@ -7,6 +7,7 @@ import { supabase } from '../services/supabase';
 import { attendanceService } from '../services/attendanceService';
 import { Loader2, CreditCard, Hash, FileDown, ExternalLink } from 'lucide-react';
 import Barcode from 'react-barcode';
+import { toPng } from 'html-to-image'; // Replaced html2canvas for better modern CSS support
 import { formatUSPhone } from '../utils';
 import { StudentDocuments } from '../components/StudentDocuments';
 
@@ -16,7 +17,7 @@ import { useStudents } from '../hooks/useQueries';
 import { toast } from 'sonner';
 
 const StudentManagement: React.FC = () => {
-  const { academyId, loading: academyLoading } = useAcademy();
+  const { academy, academyId, loading: academyLoading } = useAcademy();
   const { data: studentsData = [], isLoading: studentsLoading, refetch: refetchStudents } = useStudents(academyId);
   const students = studentsData;
   const loading = academyLoading || studentsLoading;
@@ -65,6 +66,11 @@ const StudentManagement: React.FC = () => {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [selectedStudentForPhoto, setSelectedStudentForPhoto] = useState<Student | null>(null);
 
+  // Card Pass Modal State
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [selectedStudentForCard, setSelectedStudentForCard] = useState<Student | null>(null);
+  const [downloadingCard, setDownloadingCard] = useState(false);
+
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (activeMenuId && !(event.target as HTMLElement).closest('.relative')) {
@@ -81,6 +87,20 @@ const StudentManagement: React.FC = () => {
 
     setSaving(true);
     try {
+      // 1. Check Global Email Uniqueness via RPC
+      if (newStudent.email) {
+        const { data: emailExists, error: rpcError } = await supabase
+          .rpc('check_email_exists_global', { p_email: newStudent.email });
+
+        if (rpcError) throw rpcError;
+
+        if (emailExists) {
+          toast.error('This email is already registered in the system (possibly in another academy). Global uniqueness is enforced.');
+          setSaving(false);
+          return;
+        }
+      }
+
       const { data, error } = await supabase
         .from('students')
         .insert([{
@@ -88,7 +108,7 @@ const StudentManagement: React.FC = () => {
           academy_id: academyId,
           status: UserStatus.ATIVO,
           flag: FlagStatus.VERDE,
-          card_pass_code: 'PENDING'
+          card_pass_code: 'MK-' + Math.floor(10000000 + Math.random() * 90000000).toString()
         }])
         .select()
         .single();
@@ -97,7 +117,7 @@ const StudentManagement: React.FC = () => {
 
       const seqCode = data.internal_id
         ? (10000000 + Number(data.internal_id)).toString()
-        : Math.floor(10000000 + Math.random() * 9000000).toString();
+        : Math.floor(1000000000 + Math.random() * 9000000000).toString();
 
       const { error: updateError } = await supabase
         .from('students')
@@ -293,6 +313,38 @@ const StudentManagement: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const handleViewCard = (student: Student) => {
+    setSelectedStudentForCard(student);
+    setShowCardModal(true);
+    setActiveMenuId(null);
+  };
+
+  const handleDownloadCard = async () => {
+    if (!selectedStudentForCard) return;
+    setDownloadingCard(true);
+    try {
+      const cardElement = document.getElementById(`digital-pass-${selectedStudentForCard.id}`);
+      if (!cardElement) throw new Error("Card element not found");
+
+      // Use html-to-image's toPng for better support of modern CSS (like oklch)
+      const dataUrl = await toPng(cardElement, {
+        cacheBust: true,
+        style: { transform: 'scale(1)' } // Reset any transforms
+      });
+
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `digital-pass-${selectedStudentForCard.name.replace(/\s+/g, '-').toLowerCase()}.png`;
+      link.click();
+      toast.success("Card downloaded successfully!");
+    } catch (err) {
+      console.error("Error downloading card:", err);
+      toast.error("Failed to download card.");
+    } finally {
+      setDownloadingCard(false);
+    }
+  };
+
   const filteredStudents = students.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.phone && s.phone.includes(searchTerm));
@@ -464,6 +516,15 @@ const StudentManagement: React.FC = () => {
                                   <User size={14} />
                                 </div>
                                 Edit Student
+                              </button>
+                              <button
+                                className="w-full text-left px-3 py-2.5 text-xs font-bold uppercase hover:bg-gray-50 flex items-center gap-3 text-gray-700 rounded-md transition-all group"
+                                onClick={() => handleViewCard(student)}
+                              >
+                                <div className="w-7 h-7 bg-indigo-50 text-indigo-600 flex items-center justify-center rounded transition-colors group-hover:bg-indigo-600 group-hover:text-white">
+                                  <CreditCard size={14} />
+                                </div>
+                                View Digital Pass
                               </button>
                               <button
                                 className="w-full text-left px-3 py-2.5 text-xs font-bold uppercase hover:bg-gray-50 flex items-center gap-3 text-gray-700 rounded-md transition-all group"
@@ -905,6 +966,111 @@ const StudentManagement: React.FC = () => {
                 <Button variant="secondary" onClick={() => setShowPhotoModal(false)} className="w-full">Close</Button>
               </div>
             </Card>
+          </div>
+        )
+      }
+      {
+        showCardModal && selectedStudentForCard && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200" onClick={() => setShowCardModal(false)}>
+            <div className="w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+
+              {/* Card Container - Reused from StudentPortal */}
+              <div
+                id={`digital-pass-${selectedStudentForCard.id}`}
+                className="relative overflow-hidden bg-[#1a1b2e] text-white shadow-2xl transition-all duration-500 hover:shadow-[0_0_50px_rgba(79,70,229,0.3)]"
+                style={{
+                  borderRadius: '2.5rem',
+                  aspectRatio: '0.62', // Card aspect ratio
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}
+              >
+                {/* Top Arc Decoration */}
+                <div className="absolute -top-[15%] -left-[10%] w-[120%] h-[35%] bg-indigo-600 rounded-[50%] opacity-20 blur-2xl" />
+                <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600 rounded-full opacity-10 blur-3xl" />
+
+                <div className="flex-1 flex flex-col items-center pt-10 px-6 relative z-10">
+                  {/* Logo / Brand */}
+                  <div style={{ position: 'absolute', top: '2rem', right: '2rem', opacity: 0.5 }}>
+                    {academy?.logoUrl ?
+                      <img src={academy.logoUrl} className="w-8 h-8 opacity-50 grayscale" alt="" /> :
+                      <div className="text-[10px] font-black tracking-widest uppercase">MK</div>
+                    }
+                  </div>
+
+                  {/* Photo Ring */}
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 bg-indigo-500 rounded-full blur-xl opacity-30 animate-pulse"></div>
+                    <div className="w-32 h-32 rounded-full border-4 border-indigo-500/30 p-1 relative z-10 bg-[#1a1b2e]">
+                      <img
+                        src={selectedStudentForCard.photo_url || `https://ui-avatars.com/api/?name=${selectedStudentForCard.name}&background=1e1b4b&color=818cf8`}
+                        alt="Profile"
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Name */}
+                  <h2 className="text-2xl font-black uppercase tracking-tighter text-center leading-none mb-1">
+                    {selectedStudentForCard.name}
+                  </h2>
+                  <div className="text-[10px] font-black uppercase tracking-[0.5em] text-indigo-400 mb-8">
+                    Student
+                  </div>
+
+                  {/* Info Grid */}
+                  <div className="grid grid-cols-2 gap-8 w-full mb-8">
+                    <div className="text-center">
+                      <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">ID Number</p>
+                      <p className="text-sm font-mono font-bold">#{selectedStudentForCard.internal_id || '---'}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">Affiliation</p>
+                      <p className="text-xs font-black uppercase tracking-tight leading-tight">{academy?.name || 'Academy'}</p>
+                    </div>
+                  </div>
+
+                  {/* Barcode Section */}
+                  <div className="mt-auto w-full pb-8 px-4">
+                    <div className="bg-white rounded-3xl p-4 flex flex-col items-center shadow-lg relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-50"></div>
+                      <div className="transform scale-x-110 origin-center">
+                        <Barcode
+                          value={String(selectedStudentForCard.card_pass_code || selectedStudentForCard.internal_id || '000000')}
+                          width={2.2}
+                          height={70}
+                          displayValue={false}
+                          margin={0}
+                          background="#ffffff"
+                        />
+                      </div>
+                      <p className="text-[10px] font-mono text-gray-400 mt-2 tracking-widest">
+                        {selectedStudentForCard.card_pass_code || selectedStudentForCard.internal_id}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCardModal(false)}
+                  className="flex-1 py-4 bg-gray-800 text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-gray-700 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={handleDownloadCard}
+                  disabled={downloadingCard}
+                  className="flex-[2] py-4 bg-indigo-600 text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
+                >
+                  {downloadingCard ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
+                  Download / Save
+                </button>
+              </div>
+            </div>
           </div>
         )
       }

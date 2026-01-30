@@ -41,9 +41,21 @@ const AcademySettings: React.FC = () => {
   const fetchUser = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user?.email) {
-      setAdminEmail(session.user.email);
-      // Check if user is Master
-      setIsMaster(session.user.email === 'jader_dourado@hotmail.com');
+      if (session.user.email === 'jader_dourado@hotmail.com' && ctxAcademy) {
+        // Master Admin viewing another academy
+        // We need to fetch the REAL admin email for this academy to show correct data
+        const { data: realAcademy } = await supabase
+          .from('academies')
+          .select('admin_email')
+          .eq('id', ctxAcademy.id)
+          .single();
+
+        setAdminEmail(realAcademy?.admin_email || 'Unknown');
+        setIsMaster(true);
+      } else {
+        setAdminEmail(session.user.email);
+        setIsMaster(false);
+      }
     }
   };
 
@@ -278,7 +290,11 @@ const AcademySettings: React.FC = () => {
                   label="Admin Email (Login)"
                   value={adminEmail}
                   disabled
-                  helperText="This email is used for login and cannot be visually changed here."
+                  helperText={
+                    isMaster
+                      ? "Viewing as Master Admin. This is the academy owner's login."
+                      : "This email is used for login and cannot be visually changed here."
+                  }
                 />
               </div>
               <div className="mt-4">
