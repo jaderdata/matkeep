@@ -6,9 +6,12 @@ export type AuditAction =
     | 'update_academy_settings'
     | 'update_academy_logo'
     | 'change_password'
+    | 'password_reset' // NEW: Admin reset of student password
+    | 'permanent_delete' // NEW: Master admin permanent deletion of student
     | 'create_student'
     | 'update_student'
     | 'delete_student'
+    | 'archive_student' // NEW: Soft delete via archiving
     | 'student_checkin'
     | 'update_belt'
     | 'update_flag';
@@ -89,9 +92,12 @@ export const getActionDisplayName = (action: AuditAction): string => {
         update_academy_settings: 'Updated Settings',
         update_academy_logo: 'Updated Logo',
         change_password: 'Changed Password',
+        password_reset: 'Password Reset (Admin)',
+        permanent_delete: 'Permanently Deleted Student',
         create_student: 'Created Student',
         update_student: 'Updated Student',
         delete_student: 'Deleted Student',
+        archive_student: 'Archived Student',
         student_checkin: 'Student Check-in',
         update_belt: 'Updated Belt',
         update_flag: 'Updated Flag'

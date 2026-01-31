@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Routes, Route, Link, Navigate } from 'react-router-dom';
+import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
 import { Card, Badge, Button } from '../components/UI';
 import { Download, User, Loader2, ChevronRight, Flame, GraduationCap, LogOut, LayoutDashboard, CreditCard, Activity, Calendar, Camera, Check, X, AlertCircle } from 'lucide-react';
 import { Student } from '../types';
@@ -38,7 +38,7 @@ const StudentDashboard = () => {
     const level = Math.floor(totalClasses / 10) + 1;
     const xp = (totalClasses % 10) * 10;
     const classesThisMonth = attendance.filter(a => {
-      const diff = (new Date().getTime() - new Date(a.timestamp).getTime()) / (1000 * 3600 * 24);
+      const diff = (new Date().getTime() - new Date(a.check_in_time).getTime()) / (1000 * 3600 * 24);
       return diff <= 30;
     }).length;
 
@@ -51,7 +51,7 @@ const StudentDashboard = () => {
   const streakStats = React.useMemo(() => {
     if (!attendance || attendance.length === 0) return { count: 0, active: false };
     try {
-      const uniqueDates = Array.from(new Set(attendance.map((a: any) => a.timestamp?.split('T')[0])))
+      const uniqueDates = Array.from(new Set(attendance.map((a: any) => a.check_in_time?.split('T')[0])))
         .filter(Boolean)
         .sort((a: string, b: string) => b.localeCompare(a));
 
@@ -84,7 +84,7 @@ const StudentDashboard = () => {
       const d = new Date();
       d.setDate(now.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      const count = attendance.filter(a => a.timestamp.split('T')[0] === dateStr).length;
+      const count = attendance.filter(a => a.check_in_time.split('T')[0] === dateStr).length;
       days.push({
         day: d.toLocaleDateString('en-US', { weekday: 'short' }),
         count: count,
@@ -98,7 +98,7 @@ const StudentDashboard = () => {
     // Initial fetch
     fetchStudent();
 
-    const id = localStorage.getItem('current_student_id');
+    const id = localStorage.getItem('matkeep_student_id');
     if (!id) return;
 
     // 1. Window Focus Listener (Fix for Mobile/Safari tabs freezing)
@@ -147,11 +147,22 @@ const StudentDashboard = () => {
   }, []);
 
   const fetchStudent = async () => {
-    const id = localStorage.getItem('current_student_id');
-    const sessionKey = localStorage.getItem('student_session_key');
+    const id = localStorage.getItem('matkeep_student_id');
+    const sessionKey = localStorage.getItem('matkeep_student_session_key');
     if (!id) { setLoading(false); return; }
 
     try {
+      // Validate UUID format to avoid 400 errors
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(id)) {
+        console.warn("Invalid Student UUID format in portal");
+        localStorage.removeItem('matkeep_student_id');
+        localStorage.removeItem('matkeep_student_session_key');
+        setStudent(null);
+        setLoading(false);
+        return;
+      }
+
       // Use Secure RPC for profile fetch
       const { data, error } = await supabase
         .rpc('get_student_profile', {
@@ -165,8 +176,8 @@ const StudentDashboard = () => {
       if (!data) {
         // If RPC returns null, it means ID/Key mismatch or student inactive
         console.warn("Session invalid or student not found via RPC");
-        localStorage.removeItem('current_student_id');
-        localStorage.removeItem('student_session_key');
+        localStorage.removeItem('matkeep_student_id');
+        localStorage.removeItem('matkeep_student_session_key');
         // Allow redirect to happen in effect or next render
         setStudent(null);
         return;
@@ -179,7 +190,7 @@ const StudentDashboard = () => {
         .from('attendance')
         .select('*')
         .eq('student_id', id)
-        .order('timestamp', { ascending: false });
+        .order('check_in_time', { ascending: false });
 
       setAttendance(attendanceData || []);
     } catch (err) {
@@ -266,7 +277,7 @@ const StudentDashboard = () => {
 
       {/* Main Action: Digital Pass */}
       <Link
-        to="/student/card"
+        to="../card"
         className="group relative h-20 w-full overflow-hidden rounded-[1.5rem] bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)] transition-all active:scale-95 flex items-center"
       >
         <div className="absolute inset-y-0 left-0 w-2 bg-gray-900 group-hover:w-full transition-all duration-500 opacity-10" />
@@ -331,7 +342,7 @@ const StudentDashboard = () => {
         </div>
         <div className="space-y-4">
           <div className="flex justify-between text-[10px] font-black uppercase">
-            <span className="text-gray-400">{student.belt}</span>
+            <span className="text-gray-400">{student.belt_level}</span>
             <span className="text-amber-500">Next Level</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
@@ -384,17 +395,32 @@ const CardPassView = () => {
   }, []);
 
   const fetchStudent = async () => {
-    const id = localStorage.getItem('current_student_id');
+    const id = localStorage.getItem('matkeep_student_id');
+    const sessionKey = localStorage.getItem('matkeep_student_session_key');
     if (!id) { setLoading(false); return; }
     try {
-      const { data, error } = await supabase.from('students').select('*').eq('id', id).single();
-      if (error) throw error;
-      setStudent(data);
-      if (data.academy_id) {
-        const { data: acaData } = await supabase.from('academies').select('name').eq('id', data.academy_id).maybeSingle();
-        if (acaData) setAcademyName(acaData.name);
+      // Validate UUID format to avoid 400 errors
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(id)) {
+        console.warn("Invalid Student UUID format in card view");
+        setLoading(false);
+        return;
       }
-    } catch (err) { console.error('Error:', err); } finally { setLoading(false); }
+
+      const { data, error } = await supabase
+        .rpc('get_student_profile', {
+          p_student_id: id,
+          p_session_key: sessionKey || ''
+        })
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) {
+        const profile = data as any;
+        setStudent(profile as Student);
+        setAcademyName(profile.academy_name);
+      }
+    } catch (err) { console.error('Error fetching student for card:', err); } finally { setLoading(false); }
   };
 
   const downloadCard = async () => {
@@ -449,7 +475,7 @@ const CardPassView = () => {
           <CreditCard size={40} />
         </div>
         <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">Identify yourself to view your digital pass</p>
-        <Link to="/student/dashboard" className="text-primary font-black uppercase text-xs hover:underline">Go to Dashboard</Link>
+        <Link to="../dashboard" className="text-primary font-black uppercase text-xs hover:underline">Go to Dashboard</Link>
       </div>
     );
   }
@@ -508,7 +534,7 @@ const CardPassView = () => {
               <div data-info-bottom style={{ display: 'flex', justifyContent: 'center', gap: '3rem', marginBottom: '1rem' }}>
                 <div style={{ textAlign: 'center' }}>
                   <p style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '0.4rem' }}>ID Number</p>
-                  <p style={{ fontSize: '13px', fontFamily: 'monospace', fontWeight: 900, color: '#ffffff' }}>#{student.internal_id || '000000'}</p>
+                  <p style={{ fontSize: '13px', fontFamily: 'monospace', fontWeight: 900, color: '#ffffff' }}>#{String(student.internal_id || '000000').padStart(6, '0')}</p>
                 </div>
                 <div style={{ textAlign: 'center' }}>
                   <p style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '0.4rem' }}>Affiliation</p>
@@ -522,7 +548,7 @@ const CardPassView = () => {
               <div style={{ backgroundColor: '#ffffff', borderRadius: '2.2rem', padding: '2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.7)' }}>
                 <div style={{ width: '100%', display: 'flex', justifyContent: 'center', transform: 'scaleX(1.1)' }}>
                   <Barcode
-                    value={String(student.card_pass_code || student.internal_id || '000000')}
+                    value={String(student.card_pass_code || (student.internal_id ? String(student.internal_id).padStart(6, '0') : '000000'))}
                     width={2.8}
                     height={100}
                     displayValue={false}
@@ -563,6 +589,7 @@ const CardPassView = () => {
 };
 
 const ProfileView = () => {
+  const navigate = useNavigate();
   const [student, setStudent] = React.useState<Student | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [showCamera, setShowCamera] = React.useState(false);
@@ -597,7 +624,7 @@ const ProfileView = () => {
   React.useEffect(() => {
     fetchStudent();
 
-    const id = localStorage.getItem('current_student_id');
+    const id = localStorage.getItem('matkeep_student_id');
     if (!id) return;
 
     const channel = supabase
@@ -626,34 +653,74 @@ const ProfileView = () => {
   }, []);
 
   const fetchStudent = async () => {
-    const id = localStorage.getItem('current_student_id');
+    const id = localStorage.getItem('matkeep_student_id');
+    const sessionKey = localStorage.getItem('matkeep_student_session_key');
     if (!id) { setLoading(false); return; }
     try {
-      const { data, error } = await supabase.from('students').select('*').eq('id', id).single();
+      // Validate UUID format to avoid 400 errors
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(id)) {
+        console.warn("Invalid Student UUID format in profile view");
+        setLoading(false);
+        return;
+      }
+
+      // Use Secure RPC for profile fetch
+      const { data, error } = await supabase
+        .rpc('get_student_profile', {
+          p_student_id: id,
+          p_session_key: sessionKey || ''
+        })
+        .maybeSingle();
+
       if (error) throw error;
-      setStudent(data);
-      setEditForm({
-        phone: data.phone || '',
-        birth_date: data.birth_date || ''
-      });
-    } catch (err) { console.error('Error:', err); } finally { setLoading(false); }
+      if (data) {
+        const profile = data as any;
+        setStudent(profile as Student);
+        setEditForm({
+          phone: profile.phone || '',
+          birth_date: profile.birth_date || ''
+        });
+      }
+    } catch (err) { console.error('Error fetching student for profile:', err); } finally { setLoading(false); }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('current_student_id');
-    localStorage.removeItem('student_session_key');
-    window.location.hash = '/student/login';
+    // Fallback de segurança: Pega do localStorage, se não tiver, pega do estado do componente student, se não, tenta da URL
+    const academyId = localStorage.getItem('matkeep_academy_id') || student?.academy_id;
+
+    localStorage.removeItem('matkeep_student_id');
+    localStorage.removeItem('matkeep_student_session_key');
+    localStorage.removeItem('matkeep_student_email');
+    localStorage.removeItem('matkeep_student_must_change_password');
+
+    if (academyId) {
+      navigate(`/student/auth/${academyId}`, { replace: true });
+      window.location.reload(); // Força recarregamento para limpar estados de memória
+    } else {
+      // SEGURANÇA CRÍTICA: Se não soubermos a academia, JAMAIS redirecionar para '/' 
+      // pois isso pode cair no Dashboard do Admin se houver cookies salvos.
+      // Redireciona para uma rota neutra.
+      console.error("Critical: Academy ID lost during logout. Prevented redirect to root.");
+      navigate('/student/auth/login', { replace: true }); // Rota genérica segura
+    }
   };
 
   const handleUpdatePhoto = async (base64Photo: string) => {
     if (!student) return;
     setUpdatingPhoto(true);
     try {
-      const { error } = await supabase.from('students').update({ photo_url: base64Photo }).eq('id', student.id);
-      if (error) {
+      const sessionKey = localStorage.getItem('matkeep_student_session_key');
+      const { data: success, error } = await supabase.rpc('update_student_profile', {
+        p_student_id: student.id,
+        p_session_key: sessionKey || '',
+        p_photo_url: base64Photo
+      });
+
+      if (error || !success) {
         console.error("Database error:", error);
         alert("Fail to sync photo to cloud. Please try a smaller file or better connection.");
-        throw error;
+        throw (error || new Error('Update failed'));
       }
       setStudent({ ...student, photo_url: base64Photo });
     } catch (err) {
@@ -680,18 +747,29 @@ const ProfileView = () => {
           return;
         }
 
-        const { error: passError } = await supabase.from('students').update({
-          password: passwordForm.new
-        }).eq('id', student.id);
+        const { data: newKey, error: passError } = await supabase.rpc('update_student_password', {
+          p_student_id: student.id,
+          p_new_password: passwordForm.new
+        });
 
-        if (passError) throw passError;
+        if (passError || !newKey) throw (passError || new Error('Password update failed'));
+
+        // Update local storage key
+        localStorage.setItem('matkeep_student_session_key', newKey);
       }
 
-      const { error } = await supabase.from('students').update({
-        phone: editForm.phone,
-        birth_date: editForm.birth_date
-      }).eq('id', student.id);
-      if (error) throw error;
+      // Update basic info
+      // Update basic info via RPC
+      const sessionKey = localStorage.getItem('matkeep_student_session_key');
+      const { data: profileSuccess, error: profileError } = await supabase.rpc('update_student_profile', {
+        p_student_id: student.id,
+        p_session_key: sessionKey || '',
+        p_phone: editForm.phone,
+        p_birth_date: editForm.birth_date
+      });
+
+      if (profileError || !profileSuccess) throw (profileError || new Error('Profile update failed'));
+
       setStudent({ ...student, ...editForm, ...(showPasswordFields ? { password: passwordForm.new } : {}) });
       setIsEditing(false);
 
@@ -715,7 +793,7 @@ const ProfileView = () => {
           <User size={40} />
         </div>
         <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">Student profile not found</p>
-        <Link to="/student/dashboard" className="text-primary font-black uppercase text-xs hover:underline">Return to Dashboard</Link>
+        <Link to="dashboard" className="text-primary font-black uppercase text-xs hover:underline">Return to Dashboard</Link>
       </div>
     );
   }
@@ -762,7 +840,7 @@ const ProfileView = () => {
           <h2 className="text-3xl font-black uppercase tracking-tighter text-gray-900 leading-none mb-1">{student.name}</h2>
           <div className="flex items-center justify-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Node Identifier: {student.internal_id || '---'}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Node Identifier: {student.internal_id ? String(student.internal_id).padStart(6, '0') : '---'}</p>
           </div>
         </div>
       </div>
@@ -790,11 +868,13 @@ const ProfileView = () => {
 
         <div className="glass rounded-[1.8rem] p-6 flex items-center justify-between border-gray-100 overflow-hidden relative bg-gradient-to-br from-white to-gray-50/50">
           <div className="flex flex-col gap-1">
-            <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Current Rank</span>
-            <p className="text-lg font-black text-gray-900 italic tracking-tight uppercase">{student.belt} • {student.degrees}º Degree</p>
+            <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Belt</span>
+            <p className="text-lg font-black text-gray-900 italic tracking-tight uppercase">
+              <span style={{ color: getBeltColorHex(student.belt_level) }}>•</span> {student.belt_level}
+            </p>
           </div>
           {(() => {
-            const styles = getBeltStyle(student.belt);
+            const styles = getBeltStyle(student.belt_level);
             return (
               <div
                 className={`h-14 w-14 rounded-[1.2rem] border-4 flex items-center justify-center shadow-lg transition-all duration-500 ${styles.bg} ${styles.border}`}
@@ -914,6 +994,21 @@ const ProfileView = () => {
   );
 };
 
+const getBeltColorHex = (belt: string) => {
+  const b = String(belt).toLowerCase();
+  if (b.includes('white') || b.includes('branca')) return '#cbd5e1';
+  if (b.includes('gray') || b.includes('cinza')) return '#94a3b8';
+  if (b.includes('yellow') || b.includes('amarela')) return '#facc15';
+  if (b.includes('orange') || b.includes('laranja')) return '#f97316';
+  if (b.includes('green') || b.includes('verde')) return '#16a34a';
+  if (b.includes('blue') || b.includes('azul')) return '#2563eb';
+  if (b.includes('purple') || b.includes('roxa')) return '#9333ea';
+  if (b.includes('brown') || b.includes('marrom')) return '#78350f';
+  if (b.includes('black') || b.includes('preta')) return '#0f172a';
+  if (b.includes('red') || b.includes('vermelha')) return '#dc2626';
+  return '#94a3b8';
+};
+
 const getBeltStyle = (belt: string) => {
   const b = String(belt).toLowerCase();
 
@@ -951,8 +1046,153 @@ const getBeltStyle = (belt: string) => {
 };
 
 const StudentPortal = () => {
+  const [showForcedPasswordChange, setShowForcedPasswordChange] = React.useState(false);
+  const [newPassword, setNewPassword] = React.useState('');
+  const [confirmPassword, setConfirmPassword] = React.useState('');
+  const [passwordError, setPasswordError] = React.useState<string | null>(null);
+  const [loadingPassword, setLoadingPassword] = React.useState(false);
+
+  React.useEffect(() => {
+    // Check if student must change password after login
+    const mustChange = localStorage.getItem('matkeep_student_must_change_password') === 'true';
+    if (mustChange) {
+      setShowForcedPasswordChange(true);
+    }
+  }, []);
+
+  const handleForcedPasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+
+    // Validate passwords
+    if (!newPassword || !confirmPassword) {
+      setPasswordError('Both fields are required.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+
+    // Validate password requirements: 6+ chars and 1 special char
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword)) {
+      setPasswordError('Password must contain at least 1 special character (!@#$%^&*...).');
+      return;
+    }
+
+    setLoadingPassword(true);
+
+    try {
+      const studentId = localStorage.getItem('matkeep_student_id');
+      if (!studentId) throw new Error('Student ID not found');
+
+      // Update password using secure RPC
+      const { data: newKey, error } = await supabase
+        .rpc('update_student_password', {
+          p_student_id: studentId,
+          p_new_password: newPassword
+        });
+
+      if (error) throw error;
+      if (!newKey) throw new Error('Update failed on server');
+
+      // Update local storage with NEW session key
+      localStorage.setItem('matkeep_student_session_key', newKey);
+
+      // Clear the flag and close modal
+      localStorage.removeItem('matkeep_student_must_change_password');
+      setShowForcedPasswordChange(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      console.error('Error changing password:', err);
+      const currentId = localStorage.getItem('matkeep_student_id');
+      console.log('Recovery attempt - Student ID in Storage:', currentId);
+      setPasswordError(`Failed to update password. (Session Context: ${currentId ? 'Found' : 'Lost'}). Please login again if the problem persists.`);
+    } finally {
+      setLoadingPassword(false);
+    }
+  };
+
+  // If forced password change is required, show modal
+  if (showForcedPasswordChange) {
+    return (
+      <div className="min-h-screen bg-mesh flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden">
+          <div className="p-8 pb-0">
+            <div className="w-16 h-16 bg-gray-900 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl">
+              <AlertCircle className="text-white" size={32} />
+            </div>
+            <h1 className="text-2xl font-black uppercase tracking-tighter text-gray-900 mb-2 text-center">
+              Update Password
+            </h1>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-8 text-center">
+              Your password was reset. Please create a new one.
+            </p>
+          </div>
+
+          <div className="p-8 pt-4">
+            {passwordError && (
+              <div className="mb-6 p-4 bg-red-50 rounded-2xl border border-red-100 flex gap-3 items-start">
+                <AlertCircle size={16} className="text-red-500 mt-1 shrink-0" />
+                <p className="text-xs font-bold text-red-600">{passwordError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleForcedPasswordChange} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password..."
+                  className="w-full h-14 px-4 bg-gray-50 border-2 border-transparent focus:border-gray-900 focus:bg-white rounded-2xl outline-none font-bold text-gray-900 placeholder:text-gray-300 transition-all text-sm"
+                  required
+                  autoFocus
+                />
+                <p className="text-[9px] text-gray-400 ml-4">Min 6 chars + 1 special character</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm password..."
+                  className="w-full h-14 px-4 bg-gray-50 border-2 border-transparent focus:border-gray-900 focus:bg-white rounded-2xl outline-none font-bold text-gray-900 placeholder:text-gray-300 transition-all text-sm"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loadingPassword || !newPassword || !confirmPassword}
+                className="w-full h-14 bg-gray-900 text-white rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 mt-6"
+              >
+                {loadingPassword ? <Loader2 className="animate-spin" size={20} /> : 'Update Password'}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Routes>
+      <Route index element={<Navigate to="dashboard" replace />} />
       <Route path="dashboard" element={<StudentDashboard />} />
       <Route path="card" element={<CardPassView />} />
       <Route path="profile" element={<ProfileView />} />

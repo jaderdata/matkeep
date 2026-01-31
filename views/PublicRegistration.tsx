@@ -5,6 +5,7 @@ import { Card, Input, Button, Select, Checkbox } from '../components/UI';
 import { Belt, Academy, UserStatus, FlagStatus } from '../types';
 import { CheckCircle, Loader2, Camera as CameraIcon, Check, X, AlertCircle } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { checkRateLimit, recordAttempt, resetRateLimit, getAttemptCount } from '../services/rateLimitService';
 import { CameraCapture } from '../components/CameraCapture';
 import { offlineService } from '../services/offline';
 import { PWAManager } from '../components/PWAManager';
@@ -196,9 +197,11 @@ const PublicRegistration: React.FC = () => {
         localStorage.removeItem('student_save_pass');
       }
 
-      localStorage.setItem('current_student_id', selectedStudent.id);
-      localStorage.setItem('student_session_key', btoa(selectedStudent.password || '').substring(0, 10));
-      window.location.hash = '/student/dashboard';
+      localStorage.setItem('matkeep_student_id', selectedStudent.id);
+      localStorage.setItem('matkeep_student_session_key', selectedStudent.session_key || '');
+      localStorage.setItem('matkeep_student_email', selectedStudent.email || '');
+      localStorage.setItem('matkeep_academy_id', selectedStudent.academy_id);
+      window.location.hash = `/student/portal/${selectedStudent.academy_id}`;
     } catch (err: any) {
       setError(err.message || 'Login failed.');
     } finally {
@@ -217,22 +220,15 @@ const PublicRegistration: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    const studentData = {
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      birth_date: formData.birthDate,
-      belt: formData.belt,
-      degrees: formData.degrees,
-      password: formData.password,
-      status: UserStatus.ATIVO,
-      flag: FlagStatus.VERDE,
-      card_pass_code: 'MK-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0'),
-      academy_id: academy?.id,
-      photo_url: formData.photo
-    };
-
     try {
+      // NEW: Check rate limit for registration by email
+      const { isLimited, remainingTime } = checkRateLimit(`register_${formData.email}`);
+      if (isLimited) {
+        setError(`Too many registration attempts. Please wait ${remainingTime} seconds.`);
+        setLoading(false);
+        return;
+      }
+
       if (!passwordValidation.length || !passwordValidation.special) {
         throw new Error('Password does not meet requirements');
       }
@@ -252,11 +248,30 @@ const PublicRegistration: React.FC = () => {
       if (checkError) throw checkError;
 
       if (existingStudent) {
+        // NEW: Record failed attempt
+        recordAttempt(`register_${formData.email}`);
         throw new Error('A student with this email already exists. Please login instead.');
       }
 
+      const studentData = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        birth_date: formData.birthDate,
+        belt_level: formData.belt,
+        degrees: formData.degrees,
+        password: formData.password,
+        status: UserStatus.ATIVO,
+        flag: 'GREEN',
+        card_pass_code: 'MK-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0'),
+        academy_id: academy?.id,
+        photo_url: formData.photo
+      };
+
       if (!navigator.onLine) {
         await offlineService.saveAction('students', studentData);
+        // NEW: Reset rate limit on success
+        resetRateLimit(`register_${formData.email}`);
         setStep(2);
         return;
       }
@@ -264,20 +279,48 @@ const PublicRegistration: React.FC = () => {
       const { data, error: sbError } = await supabase
         .from('students')
         .insert([studentData])
-        .select()
+        .select('id, session_key, internal_id, card_pass_code')
         .single();
 
       if (sbError) throw sbError;
 
-      localStorage.setItem('current_student_id', data.id);
-      localStorage.setItem('student_session_key', btoa(data.password || '').substring(0, 10));
+      // NEW: Reset rate limit on successful registration
+      resetRateLimit(`register_${formData.email}`);
+
+      localStorage.setItem('matkeep_student_id', data.id);
+      localStorage.setItem('matkeep_student_session_key', data.session_key || '');
+      localStorage.setItem('matkeep_student_email', studentData.email || '');
+      localStorage.setItem('matkeep_academy_id', studentData.academy_id || '');
       setStep(2);
     } catch (err: any) {
       if (!navigator.onLine) {
-        await offlineService.saveAction('students', studentData);
+        // NEW: Record attempt even offline
+        recordAttempt(`register_${formData.email}`);
+        await offlineService.saveAction('students', {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          birth_date: formData.birthDate,
+          belt: formData.belt,
+          degrees: formData.degrees,
+          password: formData.password,
+          status: UserStatus.ATIVO,
+          flag: 'GREEN',
+          card_pass_code: 'MK-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0'),
+          academy_id: academy?.id,
+          photo_url: formData.photo
+        });
         setStep(2);
       } else {
-        setError(err.message || 'Error registering');
+        // NEW: Record failed attempt
+        recordAttempt(`register_${formData.email}`);
+        const attempts = getAttemptCount(`register_${formData.email}`);
+        const remaining = 3 - attempts;
+        if (remaining <= 0) {
+          setError(`${err.message || 'Error registering'}. Too many attempts. Please try again later.`);
+        } else {
+          setError(`${err.message || 'Error registering'}. ${remaining} attempts remaining.`);
+        }
       }
     } finally {
       setLoading(false);

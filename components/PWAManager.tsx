@@ -8,7 +8,9 @@ interface PWAManagerProps {
 
 export const PWAManager: React.FC<PWAManagerProps> = ({ academy }) => {
     useEffect(() => {
-        const name = academy ? `${academy.name} Card Pass` : 'Matkeep';
+        // Use a neutral title so admin dashboard doesn't inherit the student "Card Pass" title.
+        // Format: "{Academy Name} • Matkeep" when academy is present, otherwise 'Matkeep'.
+        const name = academy ? `${academy.name} • Matkeep` : 'Matkeep';
         const shortName = academy ? academy.name : 'Matkeep';
         const icon = academy?.logoUrl || '/icon-512.png';
 

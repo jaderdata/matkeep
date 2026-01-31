@@ -74,18 +74,18 @@ const AcademySettings: React.FC = () => {
     setSaving(true);
     setMessage(null);
     try {
-      // Fetch current academy data to preserve name and address if user is not Master
-      const { data: currentAcademy } = await supabase
-        .from('academies')
-        .select('name, address')
-        .eq('id', academy.id)
-        .single();
+      // Get current user email for validation
+      const { data: { session } } = await supabase.auth.getSession();
+      const userEmail = session?.user?.email;
 
-      // Prepare update data
+      if (!userEmail) {
+        throw new Error('No authenticated user found');
+      }
+
+      // Prepare update data - only include fields that can be updated
       const updateData: any = {
-        id: academy.id,
         contact: academy.contact,
-        logo_url: academy.logoUrl,
+        logo_url: academy.logoUrl || null,
         slug: academy.slug || null,
         yellow_flag_days: academy.settings.yellowFlagDays,
         red_flag_days: academy.settings.redFlagDays
@@ -95,17 +95,21 @@ const AcademySettings: React.FC = () => {
       if (isMaster) {
         updateData.name = academy.name;
         updateData.address = academy.address;
-      } else {
-        // Preserve original values for non-Master users
-        updateData.name = currentAcademy?.name;
-        updateData.address = currentAcademy?.address;
       }
+
+      console.log('Attempting to save academy with data:', updateData);
+      console.log('User email:', userEmail);
+      console.log('Is Master:', isMaster);
 
       const { error } = await supabase
         .from('academies')
-        .upsert(updateData);
+        .update(updateData)
+        .eq('id', academy.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
 
       // Log the activity
       await logAuditActivity(
@@ -113,21 +117,26 @@ const AcademySettings: React.FC = () => {
         'update_academy_settings',
         'Updated academy settings',
         {
-          fields: Object.keys(updateData).filter(k => k !== 'id'),
+          fields: Object.keys(updateData),
           isMaster
         }
       );
 
       setMessage({ type: 'success', text: 'Settings saved successfully!' });
 
+      // Auto-hide message after 3 seconds
+      setTimeout(() => {
+        setMessage(null);
+      }, 3000);
+
       // Refresh the central context
       await refreshAcademy();
 
       // Refresh audit logs
       await fetchAuditLogs(academy.id);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao salvar:', err);
-      setMessage({ type: 'error', text: 'Failed to save settings.' });
+      setMessage({ type: 'error', text: err.message || 'Failed to save settings.' });
     } finally {
       setSaving(false);
     }
@@ -163,6 +172,11 @@ const AcademySettings: React.FC = () => {
         );
 
         setMessage({ type: 'success', text: 'Logo updated successfully!' });
+
+        // Auto-hide message after 3 seconds
+        setTimeout(() => {
+          setMessage(null);
+        }, 3000);
 
         // Refresh central context
         await refreshAcademy();
@@ -208,6 +222,12 @@ const AcademySettings: React.FC = () => {
       }
 
       setMessage({ type: 'success', text: 'Password changed successfully!' });
+
+      // Auto-hide message after 3 seconds
+      setTimeout(() => {
+        setMessage(null);
+      }, 3000);
+
       setShowPasswordModal(false);
       setNewPassword('');
       setConfirmPassword('');

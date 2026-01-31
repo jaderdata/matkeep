@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Input, Button } from '../components/UI';
 import { CheckCircle, Loader2, Award, Mail, Phone, MapPin } from 'lucide-react';
 import { supabase } from '../services/supabase';
@@ -20,6 +20,14 @@ const AcademyWizard: React.FC = () => {
     });
     const navigate = useNavigate();
 
+    useEffect(() => {
+        // Ensure accurate session state for public registration
+        const prepareRegistration = async () => {
+            await supabase.auth.signOut();
+        };
+        prepareRegistration();
+    }, []);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -30,16 +38,55 @@ const AcademyWizard: React.FC = () => {
                 throw new Error('Passwords do not match');
             }
 
-            // 1. Criar o usuário administrador no Auth
-            const { data: authData, error: authError } = await supabase.auth.signUp({
+            // 1. Criar o usuário administrador no Auth ou Logar se já existir
+            let { error: authError } = await supabase.auth.signUp({
                 email: formData.adminEmail,
                 password: formData.adminPassword,
+                options: {
+                    data: {
+                        role: 'admin'
+                    }
+                }
             });
 
-            if (authError) throw authError;
+            // Se o usuário já existe, tentamos logar
+            if (authError && (authError.message.includes('already registered') || authError.status === 422)) {
+                console.log('User already exists, attempting login...');
+                const { error: signInError } = await supabase.auth.signInWithPassword({
+                    email: formData.adminEmail,
+                    password: formData.adminPassword,
+                });
+
+                if (signInError) {
+                    throw new Error('This email is already registered. If it belongs to you, please check your password or login directly.');
+                }
+            } else if (authError) {
+                throw authError;
+            } else {
+                // Se foi criado agora, forçamos o login para garantir a sessão
+                const { error: signInError } = await supabase.auth.signInWithPassword({
+                    email: formData.adminEmail,
+                    password: formData.adminPassword,
+                });
+
+                if (signInError) throw signInError;
+            }
+
+            // 1.5 Verificar se já existe academia para este usuário
+            const { data: existingAcademy } = await supabase
+                .from('academies')
+                .select('id, name')
+                .eq('admin_email', formData.adminEmail)
+                .maybeSingle();
+
+            if (existingAcademy) {
+                throw new Error(`An academy ("${existingAcademy.name}") is already registered for this email. Please login to your dashboard.`);
+            }
 
             // 2. Criar a academia
             const academyId = 'aca-' + Math.random().toString(36).substr(2, 9);
+            const academySlug = formData.academyName.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
             const { error: acaError } = await supabase
                 .from('academies')
                 .insert([{
@@ -50,16 +97,24 @@ const AcademyWizard: React.FC = () => {
                     admin_email: formData.adminEmail,
                     logo_url: 'https://picsum.photos/seed/academy/200/200',
                     yellow_flag_days: 7,
-                    red_flag_days: 14
+                    red_flag_days: 14,
+                    slug: academySlug
                 }]);
 
-            if (acaError) throw acaError;
+            if (acaError) {
+                if (acaError.message.includes('already registered as a student')) {
+                    throw new Error('This email is already registered as a student. Owners must use an email not linked to a student account.');
+                }
+                console.error('Academy insertion error:', acaError);
+                throw new Error(`Failed to create academy record: ${acaError.message}`);
+            }
 
             // 3. Opcional: Vincular usuário à academia (se houver tabela de perfis/roles)
             // Para este MVP, o login com o email administrativo já dará acesso
 
             setStep(2);
         } catch (err: any) {
+            console.error('Wizard Error:', err);
             setError(err.message || 'Error creating academy');
         } finally {
             setLoading(false);
@@ -77,12 +132,12 @@ const AcademyWizard: React.FC = () => {
                         <h2 className="text-2xl font-black uppercase tracking-tight mb-2">Academy Created!</h2>
                         <p className="text-gray-500 text-sm leading-relaxed">
                             The academy <strong>{formData.academyName}</strong> has been successfully registered.
-                            A confirmation email has been sent to <strong>{formData.adminEmail}</strong>.
+                            Welcome aboard!
                         </p>
                     </div>
                     <div className="w-full space-y-3 pt-4">
-                        <Button className="w-full py-4 text-sm font-bold uppercase tracking-widest" onClick={() => navigate('/login')}>
-                            Go to Login
+                        <Button className="w-full py-4 text-sm font-bold uppercase tracking-widest" onClick={() => navigate('/academy/dashboard')}>
+                            Access Dashboard
                         </Button>
                     </div>
                 </Card>

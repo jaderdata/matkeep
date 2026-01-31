@@ -18,6 +18,8 @@
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "html2canvas-pro": "^1.6.6",
+    "jspdf": "^4.0.0",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.563.0",
     "react": "^19.2.4",
     "react-barcode": "^1.6.1",

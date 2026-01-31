@@ -4,6 +4,8 @@ import { Card, Button, Select, Input, Badge } from '../components/UI';
 import { Belt, UserStatus, Student, FlagStatus } from '../types';
 import { supabase } from '../services/supabase';
 import { useAcademy } from '../contexts/AcademyContext';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const AcademyReports: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -12,6 +14,10 @@ const AcademyReports: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [selectedReport, setSelectedReport] = useState<'geral' | 'frequencia' | 'evasao' | 'desempenho' | 'atividades'>('geral');
   const [logs, setLogs] = useState<any[]>([]);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [contactChannel, setContactChannel] = useState<'WhatsApp' | 'SMS' | 'Ligação' | 'Presencial'>('WhatsApp');
+  const [contactObservation, setContactObservation] = useState('');
   const { academyId } = useAcademy();
 
   useEffect(() => {
@@ -36,7 +42,10 @@ const AcademyReports: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const { data, error } = await supabase.from('students').select('*');
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('academy_id', academyId);
       if (error) throw error;
       setStudents(data || []);
       fetchLogs();
@@ -44,6 +53,34 @@ const AcademyReports: React.FC = () => {
       console.error('Error fetching report data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogContact = async () => {
+    if (!selectedStudent || !academyId) return;
+    try {
+      const contactLog = {
+        date: new Date().toISOString(),
+        channel: contactChannel,
+        observation: contactObservation
+      };
+
+      const { data, error } = await supabase
+        .rpc('log_student_contact', {
+          p_student_id: selectedStudent.id,
+          p_contact_log: contactLog
+        });
+
+      if (error) throw error;
+
+      alert('Contact logged successfully!');
+      setShowContactModal(false);
+      setContactObservation('');
+      setSelectedStudent(null);
+      fetchData();
+    } catch (err: any) {
+      console.error('Error logging contact:', err);
+      alert(`Failed to log contact: ${err.message || 'Please try again.'}`);
     }
   };
 
@@ -56,7 +93,7 @@ const AcademyReports: React.FC = () => {
         `"${s.name}"`,
         `"${s.email}"`,
         `"${s.phone}"`,
-        `"${s.belt}"`,
+        `"${s.belt_level}"`,
         s.degrees,
         `"${s.status}"`,
         `"${s.flag}"`,
@@ -71,7 +108,98 @@ const AcademyReports: React.FC = () => {
   };
 
   const handleExportPDF = () => {
-    window.print();
+    const doc = new jsPDF();
+    const title = getReportTitle();
+    const timestamp = new Date().toLocaleString();
+
+    // Add Header
+    doc.setFontSize(18);
+    doc.text('MATKEEP - Academy Report', 14, 22);
+    doc.setFontSize(12);
+    doc.setTextColor(100);
+    doc.text(title, 14, 32);
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${timestamp}`, 14, 38);
+
+    let head: string[][] = [];
+    let body: string[][] = [];
+
+    switch (selectedReport) {
+      case 'evasao':
+        const riskyStudents = students.filter(s => s.flag !== 'GREEN');
+        head = [['Student Name', 'Risk Flag', 'Last Attendance']];
+        body = riskyStudents.map(s => [
+          s.name,
+          s.flag,
+          s.last_attendance ? new Date(s.last_attendance).toLocaleDateString('en-US') : 'No record'
+        ]);
+        break;
+
+      case 'desempenho':
+        const beltStats = Object.values(Belt).map(belt => {
+          const count = students.filter(s => s.belt_level === belt).length;
+          const activePercent = count > 0 ? (students.filter(s => s.belt_level === belt && s.status === UserStatus.ATIVO).length / count * 100).toFixed(0) : 0;
+          return { belt, count, activePercent };
+        }).filter(s => s.count > 0);
+        head = [['Rank (Belt)', 'Qty. Students', 'Avg. Engagement']];
+        body = beltStats.map(stat => [
+          stat.belt,
+          String(stat.count),
+          `${stat.activePercent}%`
+        ]);
+        break;
+
+      case 'atividades':
+        head = [['Date & Time', 'User', 'Action', 'Description']];
+        body = logs.map(log => [
+          new Date(log.created_at).toLocaleString(),
+          log.user_email || 'Sistema',
+          log.action.toUpperCase(),
+          log.description || ''
+        ]);
+        break;
+
+      case 'geral':
+        const activeCount = students.filter(s => s.status === UserStatus.ATIVO).length;
+        const retention = students.length > 0 ? Math.round((activeCount / students.length) * 100) : 0;
+        const newStudents = students.filter(s => {
+          const d = s.created_at ? new Date(s.created_at).getTime() : 0;
+          const start = startDate ? new Date(startDate).getTime() : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).getTime();
+          const end = endDate ? new Date(endDate).getTime() : new Date().getTime();
+          return d >= start && d <= end;
+        }).length;
+
+        head = [['Analytical Metric', 'Current Value', 'Performance']];
+        body = [
+          ['Total Student Base', String(students.length), 'Stable'],
+          ['Engagement (Active)', String(activeCount), `${students.length > 0 ? Math.round(activeCount / students.length * 100) : 0}%`],
+          ['Estimated Retention Rate', `${retention}%`, 'Target 95%'],
+          ['New Admissions', String(newStudents), `+${newStudents}`]
+        ];
+        break;
+
+      case 'frequencia':
+        // For now, simpler output since it's a placeholder in UI
+        doc.setFontSize(12);
+        doc.text('Advanced Attendance Module - Heatmaps and peak times coming soon.', 14, 50);
+        doc.save(`matkeep_report_${selectedReport}_${new Date().toISOString().split('T')[0]}.pdf`);
+        return;
+    }
+
+    if (body.length > 0) {
+      autoTable(doc, {
+        head: head,
+        body: body,
+        startY: 45,
+        theme: 'grid',
+        headStyles: { fillColor: [41, 128, 185] },
+        styles: { fontSize: 8 }
+      });
+    } else {
+      doc.text('No data available for this report.', 14, 50);
+    }
+
+    doc.save(`matkeep_report_${selectedReport}_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   if (loading) {
@@ -85,7 +213,7 @@ const AcademyReports: React.FC = () => {
   const renderReportContent = () => {
     switch (selectedReport) {
       case 'evasao':
-        const riskyStudents = students.filter(s => s.flag !== FlagStatus.VERDE);
+        const riskyStudents = students.filter(s => s.flag !== 'GREEN');
         return (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse">
@@ -102,13 +230,22 @@ const AcademyReports: React.FC = () => {
                   <tr key={s.id} className="hover:bg-[var(--bg-secondary)]/40 transition-colors">
                     <td className="px-6 py-4 font-bold text-[var(--text-primary)]">{s.name}</td>
                     <td className="px-6 py-4">
-                      <Badge color={s.flag === FlagStatus.VERMELHA ? 'red' : 'yellow'}>{s.flag}</Badge>
+                      <Badge color={s.flag === 'RED' ? 'red' : 'yellow'}>{s.flag}</Badge>
                     </td>
                     <td className="px-6 py-4 text-[var(--text-secondary)]">
                       {s.last_attendance ? new Date(s.last_attendance).toLocaleDateString('en-US') : 'No record'}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="secondary" className="text-[10px] py-1">Log Contact</Button>
+                      <Button
+                        variant="secondary"
+                        className="text-[10px] py-1"
+                        onClick={() => {
+                          setSelectedStudent(s);
+                          setShowContactModal(true);
+                        }}
+                      >
+                        Log Contact
+                      </Button>
                     </td>
                   </tr>
                 )) : (
@@ -123,8 +260,8 @@ const AcademyReports: React.FC = () => {
 
       case 'desempenho':
         const beltStats = Object.values(Belt).map(belt => {
-          const count = students.filter(s => s.belt === belt).length;
-          const activePercent = count > 0 ? (students.filter(s => s.belt === belt && s.status === UserStatus.ATIVO).length / count * 100).toFixed(0) : 0;
+          const count = students.filter(s => s.belt_level === belt).length;
+          const activePercent = count > 0 ? (students.filter(s => s.belt_level === belt && s.status === UserStatus.ATIVO).length / count * 100).toFixed(0) : 0;
           return { belt, count, activePercent };
         }).filter(s => s.count > 0);
         return (
@@ -198,6 +335,18 @@ const AcademyReports: React.FC = () => {
         );
 
       default:
+        const activeCountUI = students.filter(s => s.status === UserStatus.ATIVO).length;
+        const retentionUI = students.length > 0 ? Math.round((activeCountUI / students.length) * 100) : 0;
+        const newStudentsUI = students.filter(s => {
+          const d = s.created_at ? new Date(s.created_at).getTime() : 0;
+          const start = startDate ? new Date(startDate).getTime() : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).getTime();
+          const end = endDate ? new Date(endDate).getTime() : new Date().getTime(); // End of today if not set? Actually input type date is string YYYY-MM-DD. 
+          // If endDate is set, we want end of that day.
+          // If endDate is string YYYY-MM-DD, new Date(endDate).getTime() is UTC midnight. 
+          // Let's assume broad range.
+          return d >= start && d <= (endDate ? new Date(endDate).getTime() + 86400000 : new Date().getTime());
+        }).length;
+
         return (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse">
@@ -210,9 +359,9 @@ const AcademyReports: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
                 <TableRow label="Total Student Base" value={String(students.length)} change="Stable" positive />
-                <TableRow label="Engagement (Active)" value={String(students.filter(s => s.status === UserStatus.ATIVO).length)} change="--%" positive />
-                <TableRow label="Estimated Retention Rate" value={students.length > 0 ? "100%" : "0%"} change="Target 95%" positive />
-                <TableRow label="New Admissions" value={String(students.length)} change={`+${students.length}`} positive />
+                <TableRow label="Engagement (Active)" value={String(activeCountUI)} change={`${students.length > 0 ? Math.round(activeCountUI / students.length * 100) : 0}%`} positive />
+                <TableRow label="Estimated Retention Rate" value={`${retentionUI}%`} change="Target 95%" positive={retentionUI >= 95} />
+                <TableRow label="New Admissions" value={String(newStudentsUI)} change={`+${newStudentsUI}`} positive />
               </tbody>
             </table>
           </div>
@@ -280,6 +429,62 @@ const AcademyReports: React.FC = () => {
           {renderReportContent()}
         </div>
       </Card>
+
+      {/* Contact Log Modal */}
+      {showContactModal && selectedStudent && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-lg font-black uppercase mb-4">Log Contact - {selectedStudent.name}</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-600 mb-2">Channel</label>
+                <select
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  value={contactChannel}
+                  onChange={(e) => setContactChannel(e.target.value as any)}
+                >
+                  <option value="WhatsApp">WhatsApp</option>
+                  <option value="SMS">SMS</option>
+                  <option value="Ligação">Phone Call</option>
+                  <option value="Presencial">In Person</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-600 mb-2">Observation</label>
+                <textarea
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                  rows={4}
+                  placeholder="Notes about the contact..."
+                  value={contactObservation}
+                  onChange={(e) => setContactObservation(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => {
+                  setShowContactModal(false);
+                  setContactObservation('');
+                  setSelectedStudent(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleLogContact}
+              >
+                Save Contact
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

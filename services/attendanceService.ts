@@ -40,10 +40,46 @@ export const attendanceService = {
                     .maybeSingle();
 
                 if (byId) student = byId;
+            } else {
+                // NEW: Fallback to phone_e164 if available
+                // This allows check-in by phone number as secondary identifier
+                let phoneQuery = supabase.from('students').select('*');
+                if (academyId) {
+                    phoneQuery = phoneQuery.eq('academy_id', academyId);
+                }
+
+                // Extract digits only from code and format to E.164
+                const digitsOnly = code.replace(/\D/g, '');
+                let phoneToMatch = '';
+
+                if (digitsOnly.length === 11) {
+                    // Assume Brazilian phone without country code
+                    phoneToMatch = '+55' + digitsOnly;
+                } else if (digitsOnly.length > 11) {
+                    // Assume already has country code
+                    phoneToMatch = '+' + digitsOnly;
+                }
+
+                if (phoneToMatch) {
+                    const { data: byPhone } = await phoneQuery
+                        .eq('phone_e164', phoneToMatch)
+                        .maybeSingle();
+
+                    if (byPhone) student = byPhone;
+                }
             }
 
             if (!student) {
                 return { success: false, message: 'Student not found or invalid code.' };
+            }
+
+            // NEW: Check if student is archived (soft deleted)
+            if (student.archived_at) {
+                return {
+                    success: false,
+                    message: 'This student has been archived and cannot check in. Please contact an administrator.',
+                    student
+                };
             }
 
             // 2. Check 60-minute rule
@@ -68,7 +104,8 @@ export const attendanceService = {
                 .insert({
                     student_id: student.id,
                     academy_id: student.academy_id,
-                    timestamp: new Date().toISOString()
+                    check_in_time: new Date().toISOString()
+                    // check_in_method defaults to 'card' in DB
                 });
 
             if (insertError) {
@@ -131,7 +168,8 @@ export const attendanceService = {
                 .insert({
                     student_id: student.id,
                     academy_id: student.academy_id,
-                    timestamp: new Date().toISOString()
+                    check_in_time: new Date().toISOString(),
+                    check_in_method: 'manual'
                 });
 
             // 4. Update Student
@@ -156,7 +194,7 @@ export const attendanceService = {
             .from('attendance')
             .select('*')
             .eq('student_id', studentId)
-            .order('timestamp', { ascending: false })
+            .order('check_in_time', { ascending: false })
             .limit(50); // Limit to last 50 for performance
 
         if (error) {

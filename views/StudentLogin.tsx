@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
-import { Loader2, User, ChevronRight, Eye, EyeOff, Building2, MapPin, ArrowLeft, Lock } from 'lucide-react';
+import { checkRateLimit, recordAttempt, resetRateLimit, getAttemptCount } from '../services/rateLimitService';
+import { Loader2, User, ChevronRight, Eye, EyeOff, Building2, MapPin, ArrowLeft, Lock, AlertCircle } from 'lucide-react';
 import { PWAManager } from '../components/PWAManager';
 
 interface MatchingStudent {
@@ -35,6 +36,13 @@ const StudentLogin: React.FC = () => {
         try {
             const cleanIdentifier = identifier.trim();
 
+            // NEW: Check rate limit for this identifier
+            const { isLimited, remainingTime } = checkRateLimit(cleanIdentifier);
+            if (isLimited) {
+                setError(`Too many attempts. Please wait ${remainingTime} seconds.`);
+                setLoading(false);
+                return;
+            }
 
             // Use Secure RPC to identify student without public table access
             const { data, error: fetchError } = await supabase
@@ -43,7 +51,11 @@ const StudentLogin: React.FC = () => {
             if (fetchError) throw fetchError;
 
             if (!data || data.length === 0) {
-                setError('Student not found. Please check your email or ID.');
+                // NEW: Record attempt
+                recordAttempt(cleanIdentifier);
+                const attempts = getAttemptCount(cleanIdentifier);
+                const remaining = 3 - attempts;
+                setError(`Student not found. ${remaining > 0 ? `${remaining} attempts remaining.` : 'Please try again later.'}`);
                 setLoading(false);
                 return;
             }
@@ -56,8 +68,6 @@ const StudentLogin: React.FC = () => {
                 academy_logo: s.logo_url,
                 academy_address: s.academy_address
             }));
-
-
 
             setMatchingStudents(enrichedStudents);
 
@@ -83,24 +93,49 @@ const StudentLogin: React.FC = () => {
         setError(null);
 
         try {
+            // NEW: Check rate limit for this student ID
+            const { isLimited, remainingTime } = checkRateLimit(`password_${selectedStudent.id}`);
+            if (isLimited) {
+                setError(`Too many incorrect attempts. Please wait ${remainingTime} seconds.`);
+                setLoading(false);
+                return;
+            }
+
             const { data, error: loginError } = await supabase
                 .from('students')
-                .select('id, password')
+                .select('id, password, must_change_password, session_key, academy_id, email')
                 .eq('id', selectedStudent.id)
                 .single();
 
             if (loginError) throw loginError;
 
             if (data.password !== password) {
-                setError('Invalid password. Please try again.');
+                // NEW: Record failed attempt
+                recordAttempt(`password_${selectedStudent.id}`);
+                const attempts = getAttemptCount(`password_${selectedStudent.id}`);
+                const remaining = 3 - attempts;
+                setError(`Invalid password. ${remaining > 0 ? `${remaining} attempts remaining.` : 'Please try again later.'}`);
                 setLoading(false);
                 return;
             }
 
+            // NEW: Reset rate limit on successful login
+            resetRateLimit(identifier);
+            resetRateLimit(`password_${selectedStudent.id}`);
+
             // Login bem sucedido
-            localStorage.setItem('current_student_id', data.id);
-            localStorage.setItem('student_session_key', btoa(data.password || '').substring(0, 10));
-            navigate('/student/dashboard');
+            localStorage.setItem('matkeep_student_id', data.id);
+            localStorage.setItem('matkeep_student_session_key', data.session_key || '');
+            localStorage.setItem('matkeep_student_email', data.email || '');
+            localStorage.setItem('matkeep_academy_id', data.academy_id);
+
+            // NEW: If must_change_password, redirect to change password screen
+            // This will be intercepted in StudentPortal.tsx
+            if (data.must_change_password) {
+                localStorage.setItem('matkeep_student_must_change_password', 'true');
+            }
+
+            navigate('/student/portal');
 
         } catch (err: any) {
             console.error('Erro no login:', err);
@@ -158,8 +193,9 @@ const StudentLogin: React.FC = () => {
 
                 <div className="p-8 pt-4">
                     {error && (
-                        <div className="mb-6 p-4 bg-red-50 rounded-2xl border border-red-100 text-center animate-in shake duration-500">
-                            <p className="text-xs font-black text-red-500 uppercase tracking-wide">{error}</p>
+                        <div className="mb-6 p-4 bg-red-50 rounded-2xl border border-red-100 flex gap-3 items-start animate-in shake duration-500">
+                            <AlertCircle size={16} className="text-red-500 mt-1 shrink-0" />
+                            <p className="text-xs font-bold text-red-600">{error}</p>
                         </div>
                     )}
 

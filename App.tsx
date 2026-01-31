@@ -1,8 +1,8 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { ChevronRight, User, GraduationCap, CreditCard, Activity, Loader2, Building2, LogOut, Moon, Sun } from 'lucide-react';
+import { HashRouter, Routes, Route, Link, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
+import { ChevronRight, User, GraduationCap, CreditCard, Activity, Loader2, Building2, LogOut, Moon, Sun, X, Menu } from 'lucide-react';
 import { DashboardIcon, StudentsIcon, StudentRegistrationIcon, CalendarIcon, CheckInIcon, ReportsIcon, SettingsIcon } from './components/CustomIcons';
 
 import AcademyDashboard from './views/AcademyDashboard';
@@ -11,8 +11,7 @@ import AcademySettings from './views/AcademySettings';
 import AcademyReports from './views/AcademyReports';
 import AcademyRegistrationLink from './views/AcademyRegistrationLink';
 import StudentPortal from './views/StudentPortal';
-import PublicRegistration from './views/PublicRegistration';
-import StudentLogin from './views/StudentLogin';
+import StudentAuthPortal from './views/StudentAuthPortal';
 import Login from './views/Login';
 import AcademyWizard from './views/AcademyWizard';
 import { MasterLayout } from './views/Master/MasterLayout';
@@ -51,9 +50,10 @@ const SidebarLink: React.FC<{ to: string; icon: React.ReactNode; label: string }
 // Redirect handler for unprotected routes when logged in
 const AuthRedirect: React.FC<{ session: any; children: React.ReactNode }> = ({ session, children }) => {
   if (session) {
-    // If it's the master admin, don't auto-redirect to academy dashboard 
+    // If it's a master admin, don't auto-redirect to academy dashboard 
     // because they might be testing public links.
-    if (session.user.email === 'jader_dourado@hotmail.com') {
+    const isMaster = session.user?.user_metadata?.role === 'master' || session.user?.app_metadata?.role === 'master';
+    if (isMaster) {
       return <>{children}</>;
     }
     return <Navigate to="/academy/dashboard" replace />;
@@ -69,7 +69,9 @@ const RequireAuth: React.FC<{ session: any; children: React.ReactNode }> = ({ se
 
 const RequireMasterAuth: React.FC<{ session: any; children: React.ReactNode }> = ({ session, children }) => {
   if (!session) return <Navigate to="/login" replace />;
-  if (session.user.email !== 'jader_dourado@hotmail.com') {
+  // NEW: Check for master role via JWT claim instead of hardcoded email
+  const isMaster = session.user?.user_metadata?.role === 'master' || session.user?.app_metadata?.role === 'master';
+  if (!isMaster) {
     return <Navigate to="/academy/dashboard" replace />;
   }
   return <>{children}</>;
@@ -137,15 +139,19 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         <div className={`p-6 border-b border-[var(--border-color)] flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           {!isCollapsed && (
             <div className="flex items-center gap-2 overflow-hidden">
-              <div className="w-8 h-8 bg-gray-900 flex items-center justify-center text-white font-bold text-xl shrink-0">M</div>
-              <span className="text-xl font-bold tracking-tight">MATKEEP</span>
+              <span className="text-2xl font-black tracking-tighter text-[var(--text-primary)]">MK</span>
+              <span className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">MATKEEP</span>
             </div>
+          )}
+          {isCollapsed && (
+            <span className="text-xl font-black tracking-tighter text-[var(--text-primary)]">MK</span>
           )}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-2 hover:bg-[var(--bg-secondary)] rounded-md transition-all active:scale-90"
+            className="p-1.5 hover:bg-[var(--bg-secondary)] transition-all flex items-center justify-center shrink-0"
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {isCollapsed ? <ChevronRight size={20} /> : <div className="w-5 h-0.5 bg-[var(--text-primary)] relative after:absolute after:top-1.5 after:left-0 after:w-5 after:h-0.5 after:bg-[var(--text-primary)] before:absolute before:-top-1.5 before:left-0 before:w-5 before:h-0.5 before:bg-[var(--text-primary)] transition-ui"></div>}
+            {isCollapsed ? <ChevronRight size={18} /> : <ChevronRight size={18} className="rotate-180" />}
           </button>
         </div>
 
@@ -238,66 +244,78 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 const StudentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const SYSTEM_VERSION = 'v1.0.13';
   const location = useLocation();
+  const { academyId } = useParams();
   const [academy, setAcademy] = useState<Academy | null>(null);
 
   useEffect(() => {
     const fetchAcademyForStudent = async () => {
-      const studentId = localStorage.getItem('current_student_id');
-      const sessionKey = localStorage.getItem('student_session_key');
+      const studentId = localStorage.getItem('matkeep_student_id');
+      const sessionKey = localStorage.getItem('matkeep_student_session_key');
       if (!studentId) return;
 
       try {
+        // Validate UUID format to avoid 400 errors
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(studentId)) {
+          console.error("Invalid Student UUID format");
+          localStorage.removeItem('matkeep_student_id');
+          localStorage.removeItem('matkeep_student_session_key');
+          localStorage.removeItem('matkeep_student_email');
+          window.location.hash = '#/';
+          return;
+        }
+
         // Use secure RPC
-        const { data } = await supabase
+        const { data, error } = await supabase
           .rpc('get_student_profile', {
             p_student_id: studentId,
             p_session_key: sessionKey || ''
           })
           .maybeSingle();
 
+        if (error) throw error;
         const student = data as any;
 
         if (student) {
-          // Basic security check is handled by RPC returning null if session invalid (if we added that logic),
-          // but here we double check if sessionKey matches locally if needed. 
-          // Actually, RPC doesn't return password field for security.
-          // So we assume if RPC returned data, student is valid.
-
-          // However, to replicate the "force logout if password changed" feature,
-          // we'd need the password hash. The RPC I wrote DOES NOT return password (good!).
-          // So we lose the "force logout immediately on password change" feature client-side 
-          // unless we add password_hash to RPC. 
-          // For now, let's prioritize ACCESS over that edge case.
-
           setAcademy({
             id: student.academy_id,
             name: student.academy_name,
             address: student.academy_address,
             contact: student.academy_contact,
             logoUrl: student.academy_logo,
-            settings: { yellowFlagDays: student.yellow_flag_days, redFlagDays: student.red_flag_days }
+            settings: {
+              yellowFlagDays: student.yellow_flag_days || 7,
+              redFlagDays: student.red_flag_days || 14
+            }
           });
         } else {
-          // Student invalid or not found
-          localStorage.removeItem('current_student_id');
-          localStorage.removeItem('student_session_key');
-          window.location.hash = '/student/login';
-        }
+          // If profile not found via RPC, it might be due to a session mismatch or temporary issue.
+          console.warn("Student profile not found or session invalid.");
+          const mustChange = localStorage.getItem('matkeep_student_must_change_password') === 'true';
 
-      } catch (err) { console.error(err); }
+          if (!mustChange) {
+            // Clear invalid session to avoid endless 400s or mismatched state
+            localStorage.removeItem('matkeep_student_id');
+            localStorage.removeItem('matkeep_student_session_key');
+            window.location.hash = '#/';
+          }
+        }
+      } catch (err) {
+        console.error("Layout Fetch Error:", err);
+      }
     };
     fetchAcademyForStudent();
-  }, []);
+  }, [location.pathname]); // Run on path changes too to ensure sync
 
   const navItems = [
-    { label: 'Home', path: '/student/dashboard', icon: <DashboardIcon size={22} /> },
-    { label: 'Card', path: '/student/card', icon: <CreditCard size={22} /> },
-    { label: 'Profile', path: '/student/profile', icon: <User size={22} /> },
+    { label: 'Home', path: `/student/portal/${academyId}/dashboard`, icon: <DashboardIcon size={22} /> },
+    { label: 'Card', path: `/student/portal/${academyId}/card`, icon: <CreditCard size={22} /> },
+    { label: 'Profile', path: `/student/portal/${academyId}/profile`, icon: <User size={22} /> },
   ];
 
   return (
     <div className="min-h-screen bg-mesh flex flex-col pb-24 md:pb-0">
-      <PWAManager academy={academy || undefined} />
+      <PWAManager academy={null} />
       {/* Translucent Header */}
       <header className="glass sticky top-0 z-[60] px-6 py-4 md:px-12 print:hidden backdrop-blur-md">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
@@ -369,16 +387,42 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Validar User Agent para segurança (Session Binding)
+    const validateUserAgent = async (currentSession: any) => {
+      if (!currentSession?.user) return;
+
+      const currentUA = navigator.userAgent;
+      const storedUA = currentSession.user.user_metadata?.user_agent;
+
+      if (!storedUA) {
+        // Primeiro acesso ou legado: registrar UA
+        console.log('Security: Binding session to browser...');
+        await supabase.auth.updateUser({
+          data: { user_agent: currentUA }
+        });
+      } else if (storedUA !== currentUA) {
+        // Mismatch detectado
+        console.warn('Security Alert: Browser mismatch detected.');
+        alert("⚠️ SECURITY ALERT\n\nSystem detected a change in your browser environment.\nFor your security, please update your session by logging in again.");
+        await supabase.auth.signOut();
+        window.location.href = '/';
+      }
+    };
+
     // Obter sessão inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
+      if (session) validateUserAgent(session);
     }).catch(() => setLoading(false));
 
     // Ouvir mudanças na autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
+      if (session && (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED')) {
+        validateUserAgent(session);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -394,7 +438,7 @@ const App: React.FC = () => {
           <Route path="/login" element={<AuthRedirect session={session}><Login /></AuthRedirect>} />
           <Route path="/forgot-password" element={<AuthRedirect session={session}><ForgotPassword /></AuthRedirect>} />
           <Route path="/check-in" element={<RequireAuth session={session}><StudentCheckIn /></RequireAuth>} />
-          <Route path="/register-academy" element={<AuthRedirect session={session}><AcademyWizard /></AuthRedirect>} />
+          <Route path="/register-academy" element={<AcademyWizard />} />
 
           {/* Master Admin Routes */}
           <Route path="/master" element={<RequireMasterAuth session={session}><MasterLayout><Navigate to="/master/dashboard" replace /></MasterLayout></RequireMasterAuth>} />
@@ -411,13 +455,13 @@ const App: React.FC = () => {
           <Route path="/academy/reports" element={<RequireAuth session={session}><AcademyLayout><AcademyReports /></AcademyLayout></RequireAuth>} />
           <Route path="/academy/settings" element={<RequireAuth session={session}><AcademyLayout><AcademySettings /></AcademyLayout></RequireAuth>} />
 
-          {/* Student Portal (Unprotected for now or has its own auth) */}
-          <Route path="/student/login" element={<StudentLogin />} />
-          <Route path="/student/*" element={<StudentLayout><StudentPortal /></StudentLayout>} />
-
-          {/* Public Registration */}
-          <Route path="/public/register" element={<PublicRegistration />} />
-          <Route path="/public/register/:academyId" element={<PublicRegistration />} />
+          {/* Student Portal - Unified Auth (Login + Register in one screen) */}
+          {/* Both routes work: /student/auth/:academyId and legacy /public/register/:academyId */}
+          <Route path="/student/auth/:academyId" element={<StudentAuthPortal />} />
+          <Route path="/public/register/:academyId" element={<StudentAuthPortal />} />
+          <Route path="/student/portal/:academyId/*" element={<StudentLayout><StudentPortal /></StudentLayout>} />
+          <Route path="/student/portal/*" element={<StudentLayout><StudentPortal /></StudentLayout>} />
+          <Route path="/student/*" element={<Navigate to="/" replace />} />
 
           {/* Legal Routes */}
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -425,9 +469,11 @@ const App: React.FC = () => {
 
           {/* Default Redirect */}
           <Route path="/" element={
-            session
-              ? (session.user.email === 'jader_dourado@hotmail.com' ? <Navigate to="/master/dashboard" replace /> : <Navigate to="/academy/dashboard" replace />)
-              : <Navigate to="/login" replace />
+            localStorage.getItem('matkeep_student_id')
+              ? <Navigate to={`/student/portal/${localStorage.getItem('matkeep_academy_id')}`} replace />
+              : session
+                ? (session.user.email === 'jader_dourado@hotmail.com' ? <Navigate to="/master/dashboard" replace /> : <Navigate to="/academy/dashboard" replace />)
+                : <Navigate to="/login" replace />
           } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

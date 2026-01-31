@@ -22,6 +22,9 @@ const StudentManagement: React.FC = () => {
   const students = studentsData;
   const loading = academyLoading || studentsLoading;
 
+  // NEW: Check if current user is master admin
+  const [isMasterAdmin, setIsMasterAdmin] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterBelt, setFilterBelt] = useState('All');
   const [filterFlag, setFilterFlag] = useState('All');
@@ -32,12 +35,16 @@ const StudentManagement: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'documents'>('details');
 
+  // NEW: For permanent delete confirmation
+  const [showPermanentDeleteModal, setShowPermanentDeleteModal] = useState(false);
+  const [deletingPermanently, setDeletingPermanently] = useState(false);
+
   const [newStudent, setNewStudent] = useState({
     name: '',
     email: '',
     phone: '',
     birth_date: '',
-    belt: Belt.BRANCA,
+    belt_level: Belt.BRANCA,
     degrees: 0
   });
 
@@ -46,7 +53,7 @@ const StudentManagement: React.FC = () => {
     email: '',
     phone: '',
     birth_date: '',
-    belt: Belt.BRANCA,
+    belt_level: Belt.BRANCA,
     degrees: 0,
     internal_id: '',
     card_pass_code: ''
@@ -54,7 +61,6 @@ const StudentManagement: React.FC = () => {
 
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
   const [showResetModal, setShowResetModal] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
 
   // History Modal State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -70,6 +76,16 @@ const StudentManagement: React.FC = () => {
   const [showCardModal, setShowCardModal] = useState(false);
   const [selectedStudentForCard, setSelectedStudentForCard] = useState<Student | null>(null);
   const [downloadingCard, setDownloadingCard] = useState(false);
+
+  // NEW: Check for master admin role on component mount
+  React.useEffect(() => {
+    const checkMasterAdmin = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const isMaster = session?.user?.user_metadata?.role === 'master' || session?.user?.app_metadata?.role === 'master';
+      setIsMasterAdmin(isMaster ?? false);
+    };
+    checkMasterAdmin();
+  }, []);
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -107,7 +123,7 @@ const StudentManagement: React.FC = () => {
           ...newStudent,
           academy_id: academyId,
           status: UserStatus.ATIVO,
-          flag: FlagStatus.VERDE,
+          flag: 'GREEN',
           card_pass_code: 'MK-' + Math.floor(10000000 + Math.random() * 90000000).toString()
         }])
         .select()
@@ -134,7 +150,7 @@ const StudentManagement: React.FC = () => {
         email: '',
         phone: '',
         birth_date: '',
-        belt: Belt.BRANCA,
+        belt_level: Belt.BRANCA,
         degrees: 0
       });
     } catch (err: any) {
@@ -152,7 +168,7 @@ const StudentManagement: React.FC = () => {
       email: student.email || '',
       phone: student.phone,
       birth_date: student.birth_date || '',
-      belt: student.belt,
+      belt_level: student.belt_level,
       degrees: student.degrees,
       internal_id: String(student.internal_id || ''),
       card_pass_code: student.card_pass_code || ''
@@ -175,7 +191,7 @@ const StudentManagement: React.FC = () => {
           email: editForm.email,
           phone: editForm.phone,
           birth_date: editForm.birth_date,
-          belt: editForm.belt,
+          belt_level: editForm.belt_level,
           degrees: editForm.degrees,
           // card_pass_code: editForm.card_pass_code // Prevent editing if requested, or keep it?
           // User said "I don't want student to edit". 
@@ -205,64 +221,170 @@ const StudentManagement: React.FC = () => {
   };
 
   const handleDelete = async (studentId: string) => {
-    if (!confirm('Are you sure you want to delete this student? This action cannot be undone.')) return;
+    if (!confirm('Archive this student? They will not be able to check in, but records will be preserved.')) return;
 
     try {
-      // 1. Delete associated attendance records (Fix for Foreign Key Constraint)
-      const { error: attendanceError } = await supabase
-        .from('attendance')
-        .delete()
-        .eq('student_id', studentId);
-
-      if (attendanceError) {
-        console.warn('Error deleting attendance records:', attendanceError);
-      }
-
-      // 2. Delete the student
+      // NEW: Soft delete - mark as archived instead of hard delete
       const { error } = await supabase
         .from('students')
-        .delete()
+        .update({
+          status: 'Inactive',
+          archived_at: new Date().toISOString()
+        })
         .eq('id', studentId);
 
       if (error) throw error;
-      toast.success('Student deleted successfully!');
+
+      // Log audit activity
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        await supabase
+          .from('audit_logs')
+          .insert({
+            academy_id: academyId,
+            user_email: session.user.email,
+            action: 'archive_student',
+            description: `Student archived/inactivated`,
+            metadata: { student_id: studentId }
+          });
+      }
+
+      toast.success('Student archived successfully!');
       refetchStudents();
       setActiveMenuId(null);
     } catch (err: any) {
-      console.error('Error deleting student:', err);
-      toast.error('Error deleting student: ' + err.message);
+      console.error('Error archiving student:', err);
+      toast.error('Error archiving student: ' + err.message);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!selectedStudent || !academyId) return;
+
+    setSaving(true);
+    try {
+      // Prefer calling the DB helper RPC if present (avoids client schema cache issues).
+      let resetSucceeded = false;
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const adminEmail = session?.user?.email || '';
+
+        const { data: rpcData, error: rpcError } = await supabase.rpc('reset_student_password', {
+          p_student_id: selectedStudent.id,
+          p_academy_id: academyId,
+          p_admin_email: adminEmail
+        });
+
+        if (rpcError) {
+          console.error('RPC reset_student_password failed:', rpcError);
+          // If the RPC exists but fails for another reason, surface it.
+          throw rpcError;
+        }
+
+        // RPC succeeded (or returned without rpcError) — proceed.
+        resetSucceeded = true;
+      } catch (rpcErr: any) {
+        console.warn('reset_student_password RPC unavailable or error:', rpcErr);
+        const msg = String(rpcErr?.message || rpcErr);
+        // Mostrar mensagem mais detalhada para ajudar diagnóstico
+        toast.error(
+          `Falha ao resetar senha: ${msg}. Verifique migrations (migrations/verify-migrations.sql) e reinicie o projeto Supabase.`
+        );
+        throw rpcErr;
+      }
+
+      // 2. Log the reset action in audit_logs
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        await supabase
+          .from('audit_logs')
+          .insert({
+            academy_id: academyId,
+            user_email: session.user.email,
+            action: 'password_reset',
+            description: `Password reset for student: ${selectedStudent.name}. New temporary password: 123456`,
+            metadata: {
+              student_id: selectedStudent.id,
+              student_name: selectedStudent.name,
+              reset_by: session.user.email
+            }
+          });
+      }
+
+      toast.success(`Password reset to '123456'. Student must change on next login.`);
+      setShowResetModal(false);
+      setSelectedStudent(null);
+      refetchStudents();
+    } catch (err: any) {
+      console.error('Error resetting password:', err);
+
+      // Detect common migration/schema errors and give actionable guidance
+      const msg = String(err?.message || err);
+      if (/must_change_password|column .* does not exist|schema cache|function reset_student_password/i.test(msg)) {
+        toast.error(
+          "Reset failed: esquema do banco ausente ou desatualizado. Aplique as migrations na ordem: 000_create_base_schema.sql → 001_add_phone_password_reset_fields.sql → 002_add_permanent_delete_function.sql → 003_fix_rls_policies_for_academy_admins.sql. Em seguida rode migrations/verify-migrations.sql no Supabase SQL Editor e reinicie o projeto (Project → Settings → Restart project). Veja MIGRATION_GUIDE.md para passos detalhados."
+        );
+      } else {
+        toast.error('Error resetting password: ' + msg);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // NEW: Handle permanent deletion (Master Admin only)
+  const handlePermanentDelete = async () => {
+    if (!selectedStudent || !academyId) return;
+
+    setDeletingPermanently(true);
+    try {
+      // Call RPC function to delete student permanently
+      const { data, error } = await supabase
+        .rpc('delete_student_permanently', {
+          p_student_id: selectedStudent.id,
+          p_academy_id: academyId
+        });
+
+      if (error) throw error;
+
+      // Log the permanent deletion in audit_logs
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        await supabase
+          .from('audit_logs')
+          .insert({
+            academy_id: academyId,
+            user_email: session.user.email,
+            action: 'permanent_delete',
+            description: `Master Admin permanently deleted student: ${selectedStudent.name}`,
+            metadata: {
+              student_id: selectedStudent.id,
+              student_name: selectedStudent.name,
+              student_email: selectedStudent.email,
+              deleted_by_master: session.user.email
+            }
+          });
+      }
+
+      toast.success(`Student ${selectedStudent.name} permanently deleted.`);
+      setShowPermanentDeleteModal(false);
+      setSelectedStudent(null);
+      refetchStudents();
+      setActiveMenuId(null);
+    } catch (err: any) {
+      console.error('Error permanently deleting student:', err);
+      toast.error('Error permanently deleting student: ' + err.message);
+    } finally {
+      setDeletingPermanently(false);
     }
   };
 
   const handleOpenResetModal = (student: Student) => {
     setSelectedStudent(student);
-    setNewPassword('123456'); // Default password as per user request
     setShowResetModal(true);
     setActiveMenuId(null);
   }
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedStudent) return;
-
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from('students')
-        .update({ password: newPassword })
-        .eq('id', selectedStudent.id);
-
-      if (error) throw error;
-
-      toast.success(`Password successfully changed to: ${newPassword}`);
-      setShowResetModal(false);
-    } catch (err: any) {
-      console.error('Error resetting password:', err);
-      toast.error('Error changing password: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleToggleStatus = async (student: Student) => {
     const newStatus = student.status === UserStatus.ATIVO ? UserStatus.INATIVO : UserStatus.ATIVO;
@@ -294,7 +416,7 @@ const StudentManagement: React.FC = () => {
         `"${s.name}"`,
         `"${s.email || ''}"`,
         `"${s.phone || ''}"`,
-        `"${translateBelt(s.belt)}"`,
+        `"${translateBelt(s.belt_level)}"`,
         s.degrees,
         `"${s.status}"`,
         `"${translateFlag(s.flag)}"`,
@@ -348,7 +470,7 @@ const StudentManagement: React.FC = () => {
   const filteredStudents = students.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.phone && s.phone.includes(searchTerm));
-    const matchesBelt = filterBelt === 'All' || s.belt === filterBelt;
+    const matchesBelt = filterBelt === 'All' || s.belt_level === filterBelt;
     const matchesFlag = filterFlag === 'All' || s.flag === filterFlag;
     return matchesSearch && matchesBelt && matchesFlag;
   });
@@ -406,9 +528,9 @@ const StudentManagement: React.FC = () => {
               label="Activity Flag"
               options={[
                 { value: 'All', label: 'All Colors' },
-                { value: FlagStatus.VERDE, label: 'Green' },
-                { value: FlagStatus.AMARELA, label: 'Yellow' },
-                { value: FlagStatus.VERMELHA, label: 'Red' },
+                { value: 'GREEN', label: 'Green' },
+                { value: 'YELLOW', label: 'Yellow' },
+                { value: 'RED', label: 'Red' },
               ]}
               value={filterFlag}
               onChange={e => setFilterFlag(e.target.value)}
@@ -443,57 +565,26 @@ const StudentManagement: React.FC = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-0.5 font-bold text-[10px] uppercase border ${getBeltColor(student.belt)}`}>
-                      {translateBelt(student.belt)} Belt
+                  <td className="px-6 py-4 text-center">
+                    <span className={`px-2 py-0.5 font-bold text-[10px] uppercase border ${getBeltColor(student.belt_level)}`}>
+                      {translateBelt(student.belt_level)} Belt
                     </span>
                   </td>
-                  <td className="px-6 py-4 font-black text-[var(--text-primary)]">{student.degrees}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 text-center font-black text-[var(--text-primary)]">{student.degrees}</td>
+                  <td className="px-6 py-4 text-center">
                     <Badge color={student.status === UserStatus.ATIVO ? 'green' : 'gray'}>{student.status}</Badge>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex items-center justify-center gap-2">
                       <div className={`w-3 h-3 ${getFlagColor(student.flag)}`}></div>
                       <span className="text-[10px] font-bold uppercase">{translateFlag(student.flag)}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-[10px] font-bold text-[var(--text-secondary)] uppercase">
+                  <td className="px-6 py-4 text-center text-[10px] font-bold text-[var(--text-secondary)] uppercase">
                     {student.last_attendance ? new Date(student.last_attendance).toLocaleDateString('en-US') : 'No record'}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-2 relative">
-                      {student.phone && (
-                        <a
-                          href={`https://wa.me/${student.phone.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 border border-[var(--border-color)] hover:bg-green-500/10 text-green-500 transition-colors"
-                          title="Send WhatsApp"
-                        >
-                          <MessageCircle size={14} />
-                        </a>
-                      )}
-                      {student.flag !== FlagStatus.VERDE && (
-                        <button className="p-1.5 border border-[var(--border-color)] hover:bg-[var(--bg-secondary)]" title="Mark Contact Made">
-                          <MessageCircle size={14} className="text-blue-500" />
-                        </button>
-                      )}
-                      <button
-                        className="p-1.5 border border-gray-300 hover:bg-gray-100"
-                        title="View Attendance History"
-                        onClick={() => {
-                          setSelectedStudentForHistory(student);
-                          setShowHistoryModal(true);
-                          setLoadingHistory(true);
-                          attendanceService.getHistory(student.id).then(history => {
-                            setHistoryData(history);
-                            setLoadingHistory(false);
-                          });
-                        }}
-                      >
-                        <Calendar size={14} className="text-gray-600" />
-                      </button>
                       <div className="relative">
                         <button
                           className={`p-1.5 border transition-all ${activeMenuId === student.id ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[var(--bg-primary)]' : 'border-[var(--border-color)] hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
@@ -508,6 +599,20 @@ const StudentManagement: React.FC = () => {
                               <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">Student Options</p>
                             </div>
                             <div className="p-1">
+                              {student.phone && (
+                                <a
+                                  href={`https://wa.me/${student.phone.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-full text-left px-3 py-2.5 text-xs font-bold uppercase hover:bg-green-50 flex items-center gap-3 text-gray-700 transition-all group block"
+                                  onClick={() => setActiveMenuId(null)}
+                                >
+                                  <div className="w-7 h-7 bg-green-50 text-green-600 flex items-center justify-center rounded transition-colors group-hover:bg-green-600 group-hover:text-white">
+                                    <MessageCircle size={14} />
+                                  </div>
+                                  Send WhatsApp
+                                </a>
+                              )}
                               <button
                                 className="w-full text-left px-3 py-2.5 text-xs font-bold uppercase hover:bg-[var(--bg-secondary)] flex items-center gap-3 text-[var(--text-primary)] transition-all group"
                                 onClick={() => handleEdit(student)}
@@ -556,8 +661,23 @@ const StudentManagement: React.FC = () => {
                                 <div className="w-7 h-7 bg-red-50 text-red-600 flex items-center justify-center rounded transition-colors group-hover:bg-red-600 group-hover:text-white">
                                   <Trash2 size={14} />
                                 </div>
-                                Delete Student
+                                Archive Student
                               </button>
+                              {isMasterAdmin && (
+                                <button
+                                  className="w-full text-left px-3 py-2.5 text-xs font-black uppercase hover:bg-red-100 text-red-700 flex items-center gap-3 rounded-md transition-all group bg-red-50"
+                                  onClick={() => {
+                                    setSelectedStudent(student);
+                                    setShowPermanentDeleteModal(true);
+                                    setActiveMenuId(null);
+                                  }}
+                                >
+                                  <div className="w-7 h-7 bg-red-200 text-red-700 flex items-center justify-center rounded transition-colors group-hover:bg-red-700 group-hover:text-white">
+                                    <Trash2 size={14} />
+                                  </div>
+                                  Delete Permanently (Master)
+                                </button>
+                              )}
                               <div className="border-t border-gray-100 my-1"></div>
                               <button
                                 className="w-full text-left px-3 py-2.5 text-xs font-bold uppercase hover:bg-amber-50 flex items-center gap-3 text-amber-700 rounded-md transition-all group"
@@ -672,8 +792,8 @@ const StudentManagement: React.FC = () => {
                     <Select
                       label="Belt"
                       options={Object.values(Belt).map(b => ({ value: b, label: b }))}
-                      value={newStudent.belt}
-                      onChange={e => setNewStudent({ ...newStudent, belt: e.target.value as Belt })}
+                      value={newStudent.belt_level}
+                      onChange={e => setNewStudent({ ...newStudent, belt_level: e.target.value as Belt })}
                     />
                     <Select
                       label="Degrees"
@@ -762,8 +882,8 @@ const StudentManagement: React.FC = () => {
                       <Select
                         label="Belt"
                         options={Object.values(Belt).map(b => ({ value: b, label: b }))}
-                        value={editForm.belt}
-                        onChange={e => setEditForm({ ...editForm, belt: e.target.value as Belt })}
+                        value={editForm.belt_level}
+                        onChange={e => setEditForm({ ...editForm, belt_level: e.target.value as Belt })}
                       />
                       <Select
                         label="Degrees"
@@ -825,49 +945,93 @@ const StudentManagement: React.FC = () => {
 
       {/* Password Reset Modal */}
       {
-        showResetModal && (
+        showResetModal && selectedStudent && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <Card className="max-w-md w-full shadow-2xl">
               <div className="p-4 border-b border-gray-300 flex justify-between items-center">
                 <h3 className="text-sm font-black uppercase tracking-widest">Reset Password</h3>
                 <button onClick={() => setShowResetModal(false)} className="text-gray-400 hover:text-gray-900">&times;</button>
               </div>
-              <form onSubmit={handleResetPassword} className="p-6 space-y-4">
-                {resetSuccess ? (
-                  <div className="bg-green-50 border border-green-200 p-6 rounded-lg text-center animate-in zoom-in duration-300">
-                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Check className="text-white" size={24} strokeWidth={3} />
-                    </div>
-                    <p className="text-sm font-black text-green-800 uppercase tracking-tight mb-2">Success!</p>
-                    <p className="text-xs text-green-600 font-bold uppercase">{resetSuccess}</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-start gap-2 mb-2">
-                      <Lock size={14} className="text-amber-600 mt-0.5 shrink-0" />
-                      <p className="text-[10px] text-amber-800 font-bold uppercase leading-tight">
-                        Default password set to 123456 for convenience. You can change it below if needed.
-                      </p>
-                    </div>
-                    <Input
-                      type="password"
-                      label="New Password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Minimum 6 characters"
-                      required
-                    />
-                    <div className="flex gap-2 pt-2">
-                      <Button type="submit" className="flex-1" disabled={saving}>
-                        {saving ? <Loader2 className="animate-spin" size={18} /> : 'Confirm Reset'}
-                      </Button>
-                      <Button variant="secondary" type="button" onClick={() => setShowResetModal(false)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </form>
+              <div className="p-6 space-y-4">
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                  <p className="text-xs font-bold text-blue-800 uppercase leading-relaxed">
+                    This will reset the password to <span className="font-black">123456</span> and require the student to change it on their next login.
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-1">Student</p>
+                  <p className="text-sm font-black text-gray-900">{selectedStudent.name}</p>
+                  {selectedStudent.email && (
+                    <p className="text-xs text-gray-500 mt-1">{selectedStudent.email}</p>
+                  )}
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    onClick={handleResetPassword}
+                    disabled={saving}
+                    className="flex-1"
+                  >
+                    {saving ? <Loader2 className="animate-spin" size={18} /> : 'Confirm Reset'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={() => setShowResetModal(false)}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )
+      }
+
+      {/* NEW: Permanent Delete Modal (Master Admin Only) */}
+      {
+        showPermanentDeleteModal && selectedStudent && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="max-w-md w-full shadow-2xl border-red-300">
+              <div className="p-4 border-b border-red-300 flex justify-between items-center bg-red-50">
+                <h3 className="text-sm font-black uppercase tracking-widest text-red-700">Permanent Delete</h3>
+                <button onClick={() => setShowPermanentDeleteModal(false)} className="text-red-400 hover:text-red-700">&times;</button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="bg-red-100 border border-red-300 p-4 rounded-lg">
+                  <p className="text-xs font-bold text-red-900 uppercase leading-relaxed">
+                    ⚠️ This will <span className="font-black">permanently delete</span> this student from the system, including ALL attendance records and documents. This action <span className="font-black">cannot be undone</span>.
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-1">Student to Delete</p>
+                  <p className="text-sm font-black text-gray-900">{selectedStudent.name}</p>
+                  {selectedStudent.email && (
+                    <p className="text-xs text-gray-500 mt-1">{selectedStudent.email}</p>
+                  )}
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    onClick={handlePermanentDelete}
+                    disabled={deletingPermanently}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {deletingPermanently ? <Loader2 className="animate-spin" size={18} /> : 'Delete Permanently'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={() => setShowPermanentDeleteModal(false)}
+                    disabled={deletingPermanently}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
             </Card>
           </div>
         )
@@ -901,7 +1065,7 @@ const StudentManagement: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-[var(--border-color)]">
                       {historyData.map((record) => {
-                        const date = new Date(record.timestamp);
+                        const date = new Date(record.check_in_time);
                         return (
                           <tr key={record.id} className="hover:bg-[var(--bg-secondary)]">
                             <td className="p-3 text-[var(--text-primary)] font-medium">

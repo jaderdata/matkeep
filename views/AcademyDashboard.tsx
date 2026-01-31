@@ -5,6 +5,7 @@ import { Card, Badge } from '../components/UI';
 import { FlagStatus, UserStatus, Student, Academy } from '../types';
 import { useAcademy } from '../contexts/AcademyContext';
 import { useStudents, useAttendance } from '../hooks/useQueries';
+import { useNavigate } from 'react-router-dom';
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; trend?: string; color: string }> = ({ title, value, icon, trend, color }) => (
   <Card className="p-6 relative overflow-hidden transition-ui hover:shadow-lg">
@@ -23,6 +24,7 @@ const StatCard: React.FC<{ title: string; value: string | number; icon: React.Re
 
 const AcademyDashboard: React.FC = () => {
   const { academy, academyId, loading: academyLoading } = useAcademy();
+  const navigate = useNavigate();
 
   const { data: students = [], isLoading: studentsLoading } = useStudents(academyId);
   const { data: attendance = [], isLoading: attendanceLoading } = useAttendance(academyId);
@@ -32,8 +34,8 @@ const AcademyDashboard: React.FC = () => {
   const totalStudents = students.length;
   const activeStudents = students.filter(s => s.status === UserStatus.ATIVO).length;
   const inactiveStudents = totalStudents - activeStudents;
-  const yellowFlags = students.filter(s => s.flag === FlagStatus.AMARELA).length;
-  const redFlags = students.filter(s => s.flag === FlagStatus.VERMELHA).length;
+  const yellowFlags = students.filter(s => s.flag === 'YELLOW').length;
+  const redFlags = students.filter(s => s.flag === 'RED').length;
 
   const birthdaysThisMonth = students.filter(s => {
     if (!s.birth_date) return false;
@@ -128,12 +130,12 @@ const AcademyDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-300">
-                {students.filter(s => s.flag !== FlagStatus.VERDE).length > 0 ? (
-                  students.filter(s => s.flag !== FlagStatus.VERDE).map(s => (
+                {students.filter(s => s.flag !== 'GREEN').length > 0 ? (
+                  students.filter(s => s.flag !== 'GREEN').map(s => (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium">{s.name}</td>
                       <td className="px-4 py-3">
-                        <Badge color={s.flag === FlagStatus.AMARELA ? 'yellow' : 'red'}>
+                        <Badge color={s.flag === 'GREEN' ? 'green' : s.flag === 'YELLOW' ? 'yellow' : 'red'}>
                           {s.flag}
                         </Badge>
                       </td>
@@ -141,7 +143,12 @@ const AcademyDashboard: React.FC = () => {
                         {s.last_attendance ? new Date(s.last_attendance).toLocaleDateString('en-US') : 'Never'}
                       </td>
                       <td className="px-4 py-3">
-                        <button className="text-[10px] font-bold uppercase text-gray-900 hover:underline">View Student</button>
+                        <button
+                          className="text-[10px] font-bold uppercase text-gray-900 hover:underline"
+                          onClick={() => navigate('/academy/students')}
+                        >
+                          View Student
+                        </button>
                       </td>
                     </tr>
                   ))
