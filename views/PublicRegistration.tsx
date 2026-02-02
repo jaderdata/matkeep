@@ -73,12 +73,24 @@ const PublicRegistration: React.FC = () => {
   };
 
   useEffect(() => {
+    // CRITICAL: Clear admin credentials to prevent browser autofill confusion
+    localStorage.removeItem('admin_remember_email');
+    localStorage.removeItem('admin_save_pass');
+
     resetForm();
     // Forced secondary clear to fight aggressive browser autofill
     setTimeout(() => {
       setLoginData({ identifier: '', password: '' });
       setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }));
     }, 100);
+
+    // AGGRESSIVE: Clear every 500ms for first 3 seconds to fight autofill
+    const intervals = [200, 400, 600, 800, 1000, 1500, 2000, 2500, 3000];
+    const timers = intervals.map(delay =>
+      setTimeout(() => {
+        setLoginData({ identifier: '', password: '' });
+      }, delay)
+    );
 
     const fetchAcademy = async () => {
       if (!urlAcademyId) {
@@ -118,6 +130,10 @@ const PublicRegistration: React.FC = () => {
       }
     };
     fetchAcademy();
+
+    return () => {
+      timers.forEach(timer => clearTimeout(timer));
+    };
   }, [urlAcademyId]);
 
   const handleIdentify = async (e: React.FormEvent) => {
@@ -410,15 +426,21 @@ const PublicRegistration: React.FC = () => {
 
         {view === 'login' ? (
           loginStep === 'identify' ? (
-            <form onSubmit={handleIdentify} className="space-y-6" autoComplete="off">
+            <form onSubmit={handleIdentify} className="space-y-6" autoComplete="off" data-form-type="other">
+              {/* Hidden honeypot fields to trick browser autofill */}
+              <input type="text" name="fake_username" autoComplete="username" style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }} tabIndex={-1} />
+              <input type="password" name="fake_password" autoComplete="current-password" style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }} tabIndex={-1} />
               <Input
                 label="Email or Access Code"
                 placeholder="Enter email or student ID..."
                 value={loginData.identifier}
                 onChange={(e) => setLoginData({ ...loginData, identifier: e.target.value })}
+                onFocus={(e) => e.target.removeAttribute('readonly')}
                 required
                 autoComplete="off"
-                name="student_auth_identifier"
+                name="student_login_id"
+                data-form-type="other"
+                readOnly
               />
               <Button type="submit" className="w-full py-3" disabled={loading}>
                 {loading ? <Loader2 className="animate-spin" /> : 'Next'}
@@ -465,7 +487,10 @@ const PublicRegistration: React.FC = () => {
               </div>
             </div>
           ) : (
-            <form onSubmit={handleFinalLogin} className="space-y-6" autoComplete="off">
+            <form onSubmit={handleFinalLogin} className="space-y-6" autoComplete="off" data-form-type="other">
+              {/* Hidden honeypot fields to trick browser autofill */}
+              <input type="text" name="fake_email" autoComplete="username" style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }} tabIndex={-1} />
+              <input type="password" name="fake_pass" autoComplete="current-password" style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }} tabIndex={-1} />
               <div className="text-center mb-4">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                   Logging into {selectedStudent?.academy_name}
@@ -477,9 +502,12 @@ const PublicRegistration: React.FC = () => {
                 placeholder="Your password"
                 value={loginData.password}
                 onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                onFocus={(e) => e.target.removeAttribute('readonly')}
                 required
                 autoComplete="new-password"
-                name="student_auth_password"
+                name="student_login_pass"
+                data-form-type="other"
+                readOnly
               />
               <div className="flex flex-col gap-3">
                 <Checkbox

@@ -1124,79 +1124,100 @@ const StudentManagement: React.FC = () => {
               {/* Card Container - Reused from StudentPortal */}
               <div
                 id={`digital-pass-${selectedStudentForCard.id}`}
-                className="relative overflow-hidden bg-[#1a1b2e] text-white shadow-2xl transition-all duration-500 hover:shadow-[0_0_50px_rgba(79,70,229,0.3)]"
+                className="relative overflow-hidden text-white shadow-2xl transition-all duration-500"
                 style={{
                   borderRadius: '2.5rem',
-                  aspectRatio: '0.62', // Card aspect ratio
+                  aspectRatio: '0.62',
                   width: '100%',
                   display: 'flex',
-                  flexDirection: 'column'
+                  flexDirection: 'column',
+                  background: 'linear-gradient(160deg, #0d1117 0%, #161b22 30%, #21262d 50%, #1a1f25 70%, #0d1117 100%)'
                 }}
               >
-                {/* Top Arc Decoration */}
-                <div className="absolute -top-[15%] -left-[10%] w-[120%] h-[35%] bg-indigo-600 rounded-[50%] opacity-20 blur-2xl" />
-                <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600 rounded-full opacity-10 blur-3xl" />
+                {/* Curved Wave Overlays */}
+                <div className="absolute inset-0" style={{
+                  background: 'linear-gradient(135deg, rgba(55, 65, 81, 0.6) 0%, transparent 50%)',
+                  clipPath: 'ellipse(80% 50% at 0% 30%)',
+                  pointerEvents: 'none'
+                }} />
+                <div className="absolute inset-0" style={{
+                  background: 'linear-gradient(225deg, rgba(75, 85, 99, 0.5) 0%, transparent 60%)',
+                  clipPath: 'ellipse(70% 60% at 100% 80%)',
+                  pointerEvents: 'none'
+                }} />
 
-                <div className="flex-1 flex flex-col items-center pt-10 px-6 relative z-10">
-                  {/* Logo / Brand */}
-                  <div style={{ position: 'absolute', top: '2rem', right: '2rem', opacity: 0.5 }}>
-                    {academy?.logoUrl ?
-                      <img src={academy.logoUrl} className="w-8 h-8 opacity-50 grayscale" alt="" /> :
-                      <div className="text-[10px] font-black tracking-widest uppercase">MK</div>
-                    }
-                  </div>
-
-                  {/* Photo Ring */}
-                  <div className="relative mb-6">
-                    <div className="absolute inset-0 bg-indigo-500 rounded-full blur-xl opacity-30 animate-pulse"></div>
-                    <div className="w-32 h-32 rounded-full border-4 border-indigo-500/30 p-1 relative z-10 bg-[#1a1b2e]">
-                      <img
-                        src={selectedStudentForCard.photo_url || `https://ui-avatars.com/api/?name=${selectedStudentForCard.name}&background=1e1b4b&color=818cf8`}
-                        alt="Profile"
-                        className="w-full h-full rounded-full object-cover"
+                <div className="flex-1 flex flex-col items-center pt-8 px-5 relative z-10">
+                  {/* Photo with Gradient Border */}
+                  <div className="relative mb-5">
+                    <div style={{ padding: '3px', borderRadius: '500px', background: 'linear-gradient(135deg, #64748b 0%, #94a3b8 50%, #cbd5e1 100%)', boxShadow: '0 0 30px rgba(100, 116, 139, 0.4)' }}>
+                      <div
+                        style={{
+                          width: '96px',
+                          height: '96px',
+                          borderRadius: '500px',
+                          overflow: 'hidden',
+                          backgroundColor: '#0f172a',
+                          backgroundImage: `url("${selectedStudentForCard.photo_url || `https://ui-avatars.com/api/?name=${selectedStudentForCard.name}&background=0f172a&color=94a3b8`}")`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          backgroundRepeat: 'no-repeat'
+                        }}
                       />
                     </div>
                   </div>
 
-                  {/* Name */}
-                  <h2 className="text-2xl font-black uppercase tracking-tighter text-center leading-none mb-1">
+                  {/* Student Name - Main Title */}
+                  <h2 className="text-xl font-black uppercase tracking-tight text-center leading-none mb-1">
                     {selectedStudentForCard.name}
                   </h2>
-                  <div className="text-[10px] font-black uppercase tracking-[0.5em] text-indigo-400 mb-8">
-                    Student
+                  <div className="text-[9px] font-bold uppercase tracking-[0.3em] text-gray-400 mb-5">
+                    STUDENT
                   </div>
 
-                  {/* Info Grid */}
-                  <div className="grid grid-cols-2 gap-8 w-full mb-8">
-                    <div className="text-center">
-                      <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">ID Number</p>
-                      <p className="text-sm font-mono font-bold">#{selectedStudentForCard.internal_id || '---'}</p>
+                  {/* Info Box with Border */}
+                  <div style={{
+                    border: '1.5px solid rgba(148, 163, 184, 0.3)',
+                    borderRadius: '0.75rem',
+                    padding: '0.75rem 1rem',
+                    display: 'flex',
+                    width: '100%',
+                    marginBottom: '1.2rem',
+                    backgroundColor: 'rgba(15, 23, 42, 0.4)'
+                  }}>
+                    <div style={{ flex: 1, textAlign: 'left', paddingRight: '0.8rem', borderRight: '1px solid rgba(148, 163, 184, 0.3)' }}>
+                      <p className="text-[8px] font-bold text-gray-500 uppercase tracking-wider mb-1">ID Number:</p>
+                      <p className="text-xs font-mono font-bold">#{String(selectedStudentForCard.internal_id || '000000').padStart(8, '0')}</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">Affiliation</p>
-                      <p className="text-xs font-black uppercase tracking-tight leading-tight">{academy?.name || 'Academy'}</p>
+                    <div style={{ flex: 1, textAlign: 'left', paddingLeft: '0.8rem' }}>
+                      <p className="text-[8px] font-bold text-gray-500 uppercase tracking-wider mb-1">Affiliation:</p>
+                      <p className="text-[10px] font-bold leading-tight">{academy?.name || 'Academy'}</p>
                     </div>
                   </div>
 
-                  {/* Barcode Section */}
-                  <div className="mt-auto w-full pb-8 px-4">
-                    <div className="bg-white rounded-3xl p-4 flex flex-col items-center shadow-lg relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-50"></div>
-                      <div className="transform scale-x-110 origin-center">
+                  {/* Barcode Section - Centered Barcode */}
+                  <div className="mt-auto w-full pb-6 px-3">
+                    <div className="bg-white rounded-xl p-4 flex flex-col items-center justify-center shadow-lg relative overflow-hidden min-h-[80px]">
+                      <div className="admin-barcode-container transform scale-x-110 origin-center" style={{ height: '55px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                         <Barcode
-                          value={String(selectedStudentForCard.card_pass_code || selectedStudentForCard.internal_id || '000000')}
-                          width={1.6}
-                          height={70}
+                          value={String(selectedStudentForCard.internal_id || '000000').padStart(6, '0')}
+                          width={1.4}
+                          height={55}
                           displayValue={false}
                           margin={0}
                           background="#ffffff"
                         />
                       </div>
-                      <p className="text-[10px] font-mono text-gray-400 mt-2 tracking-widest">
-                        {selectedStudentForCard.card_pass_code || selectedStudentForCard.internal_id}
-                      </p>
                     </div>
                   </div>
+                  {/* Global CSS to hide barcode text */}
+                  <style>{`
+                    .admin-barcode-container svg text,
+                    .admin-barcode-container text {
+                      display: none !important;
+                      visibility: hidden !important;
+                      opacity: 0 !important;
+                    }
+                  `}</style>
                 </div>
               </div>
 

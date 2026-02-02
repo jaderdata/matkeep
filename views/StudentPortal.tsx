@@ -364,16 +364,16 @@ const StudentDashboard = () => {
           {attendance.slice(0, 3).map((a, i) => (
             <div key={i} className="flex items-center gap-4 glass p-4 rounded-3xl border-gray-100 shadow-sm">
               <div className="h-10 w-10 shrink-0 rounded-2xl bg-gray-50 flex items-center justify-center font-black text-xs text-gray-400">
-                {new Date(a.timestamp).getDate()}
+                {new Date(a.check_in_time).getDate()}
               </div>
               <div className="flex-1">
                 <p className="text-xs font-black uppercase text-gray-900 leading-none">Training Confirmed</p>
                 <p className="text-[8px] font-bold text-gray-400 uppercase mt-1 tracking-widest">
-                  {new Date(a.timestamp).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  {new Date(a.check_in_time).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </p>
               </div>
               <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-1 rounded-lg">
-                {new Date(a.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                {new Date(a.check_in_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
           ))}
@@ -438,16 +438,18 @@ const CardPassView = () => {
           const el = clonedDoc.querySelector('[data-card-container]') as HTMLElement;
           if (el) {
             el.style.width = '400px';
-            el.style.height = '620px'; // Updated to match new UI height
+            el.style.height = '650px';
             el.style.transform = 'none';
             el.style.margin = '0';
 
-            // Adjust internal spacing specifically for the capture to prevent cutting
-            const infoBottom = el.querySelector('[data-info-bottom]') as HTMLElement;
-            if (infoBottom) {
-              infoBottom.style.marginTop = '-20px';
-              infoBottom.style.position = 'relative';
-              infoBottom.style.zIndex = '20';
+            // Critical fix for photo distortion during export
+            const photoContainer = el.querySelector('.photo-container-capture') as HTMLElement;
+            if (photoContainer) {
+              photoContainer.style.width = '144px';
+              photoContainer.style.height = '144px';
+              photoContainer.style.borderRadius = '200px';
+              photoContainer.style.backgroundSize = 'cover';
+              photoContainer.style.backgroundPosition = 'center';
             }
           }
         }
@@ -485,72 +487,137 @@ const CardPassView = () => {
 
 
       <div className="w-full flex justify-center py-4 px-4 overflow-x-auto">
-        {/* The Card Container - Redesigned Vertical ID */}
-        <div ref={cardRef} data-card-container style={{ width: '400px', height: '620px', padding: '0', margin: '0', flexShrink: 0 }}>
-          <div className="relative w-full h-full" style={{ backgroundColor: '#0f172a', borderRadius: '3rem', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid rgba(255, 255, 255, 0.15)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+        {/* The Card Container - Exact Reference Design */}
+        <div ref={cardRef} data-card-container style={{ width: '400px', height: '650px', padding: '0', margin: '0', flexShrink: 0 }}>
+          <div className="relative w-full h-full" style={{
+            background: 'linear-gradient(160deg, #0d1117 0%, #161b22 30%, #21262d 50%, #1a1f25 70%, #0d1117 100%)',
+            borderRadius: '3rem',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)'
+          }}>
 
-            {/* Design Elements */}
-            <div className="absolute top-0 left-0 right-0" style={{ height: '14rem', background: 'linear-gradient(to bottom, rgba(79, 70, 229, 0.2), transparent)' }} />
-            <div className="absolute rounded-full" style={{ right: '-6rem', top: '-6rem', height: '18rem', width: '18rem', backgroundColor: 'rgba(79, 70, 229, 0.2)' }} />
-            <div className="absolute rounded-full" style={{ left: '-5rem', bottom: '-5rem', height: '18rem', width: '18rem', backgroundColor: 'rgba(236, 72, 153, 0.1)' }} />
+            {/* Curved Wave Overlays - Like Reference Model but in Gray Tones */}
+            <div className="absolute inset-0" style={{
+              background: 'linear-gradient(135deg, rgba(55, 65, 81, 0.6) 0%, transparent 50%)',
+              clipPath: 'ellipse(80% 50% at 0% 30%)',
+              pointerEvents: 'none'
+            }} />
+            <div className="absolute inset-0" style={{
+              background: 'linear-gradient(225deg, rgba(75, 85, 99, 0.5) 0%, transparent 60%)',
+              clipPath: 'ellipse(70% 60% at 100% 80%)',
+              pointerEvents: 'none'
+            }} />
+            <div className="absolute inset-0" style={{
+              background: 'linear-gradient(180deg, transparent 60%, rgba(55, 65, 81, 0.4) 100%)',
+              pointerEvents: 'none'
+            }} />
+            <div className="absolute" style={{
+              top: '0',
+              right: '-10%',
+              width: '60%',
+              height: '40%',
+              background: 'radial-gradient(ellipse at top right, rgba(100, 116, 139, 0.25) 0%, transparent 70%)',
+              pointerEvents: 'none'
+            }} />
+            <div className="absolute" style={{
+              bottom: '0',
+              left: '-5%',
+              width: '70%',
+              height: '50%',
+              background: 'radial-gradient(ellipse at bottom left, rgba(71, 85, 105, 0.35) 0%, transparent 70%)',
+              pointerEvents: 'none'
+            }} />
 
-            {/* Header Area Removed */}
-            <div className="relative z-10" style={{ paddingTop: '3rem', paddingLeft: '2.5rem', paddingRight: '2.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '3rem' }}>
-            </div>
-
-            {/* Photo Section */}
-            <div className="relative z-10" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '1.5rem', paddingLeft: '2.5rem', paddingRight: '2.5rem' }}>
-              <div style={{ height: '11.5rem', width: '11.5rem', borderRadius: '9999px', overflow: 'hidden', border: '6px solid rgba(255, 255, 255, 0.08)', backgroundColor: '#1e293b', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)' }}>
-                {student.photo_url ? (
-                  <img
-                    src={student.photo_url.startsWith('data:') ? student.photo_url : `${student.photo_url}${student.photo_url.includes('?') ? '&' : '?'}t=${new Date().getTime()}`}
-                    alt="Pass"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    crossOrigin="anonymous"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(student!.name) + "&background=1e293b&color=fff";
-                    }}
-                  />
-                ) : (
-                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '4rem', color: '#ffffff' }}>
-                    {student.name.charAt(0)}
-                  </div>
-                )}
+            {/* Photo Section - Using background-image for best capture stability */}
+            <div className="relative z-10" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '40px', paddingLeft: '40px', paddingRight: '40px' }}>
+              <div style={{ padding: '4px', borderRadius: '500px', background: 'linear-gradient(135deg, #64748b 0%, #94a3b8 50%, #cbd5e1 100%)', boxShadow: '0 0 40px rgba(100, 116, 139, 0.5)' }}>
+                <div
+                  className="photo-container-capture"
+                  style={{
+                    height: '144px',
+                    width: '144px',
+                    borderRadius: '500px',
+                    overflow: 'hidden',
+                    backgroundColor: '#0f172a',
+                    backgroundImage: student.photo_url ? `url("${student.photo_url.startsWith('data:') ? student.photo_url : `${student.photo_url}${student.photo_url.includes('?') ? '&' : '?'}t=${new Date().getTime()}`}")` : 'none',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  {!student.photo_url && (
+                    <div style={{ fontWeight: 900, fontSize: '3rem', color: '#ffffff' }}>
+                      {student.name.charAt(0)}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Info Section */}
-            <div className="relative z-20" style={{ marginTop: '1.5rem', paddingLeft: '2rem', paddingRight: '2rem', textAlign: 'center' }}>
-              <h3 style={{ fontSize: '2.4rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.01em', lineHeight: '1', color: '#ffffff', marginBottom: '0.4rem' }}>
+            {/* Student Name - Single Line, Large */}
+            <div className="relative z-20" style={{ marginTop: '1.8rem', paddingLeft: '2rem', paddingRight: '2rem', textAlign: 'center' }}>
+              <h2 style={{
+                fontSize: '2.8rem',
+                fontWeight: 900,
+                textTransform: 'uppercase',
+                letterSpacing: '0.02em',
+                lineHeight: '0.95',
+                color: '#ffffff',
+                marginBottom: '0.5rem',
+                textShadow: '0 2px 10px rgba(0, 0, 0, 0.3)'
+              }}>
                 {student.name}
-              </h3>
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.2rem' }}>
-                <p style={{ fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.65em', fontStyle: 'italic', color: '#818cf8', opacity: 0.9 }}>
-                  Student
+              </h2>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
+                <p style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5em',
+                  color: '#cbd5e1',
+                  opacity: 0.8
+                }}>
+                  STUDENT
                 </p>
               </div>
 
-              <div data-info-bottom style={{ display: 'flex', justifyContent: 'center', gap: '3rem', marginBottom: '1rem' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '0.4rem' }}>ID Number</p>
-                  <p style={{ fontSize: '13px', fontFamily: 'monospace', fontWeight: 900, color: '#ffffff' }}>#{String(student.internal_id || '000000').padStart(6, '0')}</p>
+              {/* Info Box - Matching Reference */}
+              <div style={{
+                border: '1px solid rgba(148, 163, 184, 0.25)',
+                borderRadius: '1.2rem',
+                padding: '1.5rem 2rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '2rem',
+                marginBottom: '1.5rem',
+                backgroundColor: 'rgba(30, 27, 75, 0.3)',
+                backdropFilter: 'blur(10px)'
+              }}>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <p style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>ID Number:</p>
+                  <p style={{ fontSize: '17px', fontFamily: 'monospace', fontWeight: 900, color: '#ffffff' }}>#{String(student.internal_id || '000000').padStart(8, '0')}</p>
                 </div>
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '0.4rem' }}>Affiliation</p>
-                  <p style={{ fontSize: '11px', fontWeight: 900, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '-0.01em', lineHeight: '1.2' }}>{academyName}</p>
+                <div style={{ width: '1px', backgroundColor: 'rgba(148, 163, 184, 0.25)' }} />
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <p style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>Affiliation:</p>
+                  <p style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff', lineHeight: '1.3' }}>{academyName}</p>
                 </div>
               </div>
             </div>
 
-            {/* Barcode Footer Section */}
-            <div className="relative z-10" style={{ marginTop: 'auto', paddingLeft: '2.2rem', paddingRight: '2.2rem', paddingBottom: '3rem' }}>
-              <div style={{ backgroundColor: '#ffffff', borderRadius: '2.2rem', padding: '2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.7)' }}>
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'center', transform: 'scaleX(1.1)' }}>
+            {/* Barcode Footer - Centered Barcode */}
+            <div className="relative z-10" style={{ marginTop: 'auto', paddingLeft: '2rem', paddingRight: '2rem', paddingBottom: '2.5rem' }}>
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '1.5rem', padding: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.5)', minHeight: '100px' }}>
+                <div className="barcode-container" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70px', overflow: 'hidden' }}>
                   <Barcode
                     value={String(student.card_pass_code || (student.internal_id ? String(student.internal_id).padStart(6, '0') : '000000'))}
-                    width={2.8}
-                    height={100}
+                    width={2.2}
+                    height={70}
                     displayValue={false}
                     margin={0}
                     background="#ffffff"
@@ -559,8 +626,16 @@ const CardPassView = () => {
               </div>
             </div>
 
-            {/* Overlay Gradient for Texture */}
-            <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at top right, rgba(255, 255, 255, 0.12) 0%, transparent 70%)', opacity: 0.25 }} />
+            {/* CSS to hide barcode text */}
+            <style>{`
+              .barcode-container svg text,
+              .barcode-container text,
+              [data-card-container] svg text {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+              }
+            `}</style>
           </div>
         </div>
       </div>
