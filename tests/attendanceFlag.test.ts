@@ -20,7 +20,7 @@ export function calculateAttendanceFlag(
     settings: FlagSettings
 ): FlagStatus {
     if (!lastAttendance) {
-        return FlagStatus.VERMELHA;
+        return FlagStatus.RED;
     }
 
     const lastDate = new Date(lastAttendance);
@@ -30,11 +30,11 @@ export function calculateAttendanceFlag(
     );
 
     if (daysSinceLastAttendance <= settings.yellowFlagDays) {
-        return FlagStatus.VERDE;
+        return FlagStatus.GREEN;
     } else if (daysSinceLastAttendance <= settings.redFlagDays) {
-        return FlagStatus.AMARELA;
+        return FlagStatus.YELLOW;
     } else {
-        return FlagStatus.VERMELHA;
+        return FlagStatus.RED;
     }
 }
 
@@ -48,26 +48,26 @@ describe('Attendance Flag Calculation', () => {
         const today = new Date();
         const recentDate = new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000); // 3 days ago
         const flag = calculateAttendanceFlag(recentDate.toISOString(), defaultSettings);
-        expect(flag).toBe(FlagStatus.VERDE);
+        expect(flag).toBe(FlagStatus.GREEN);
     });
 
     it('should return yellow flag for moderate absence', () => {
         const today = new Date();
         const moderateDate = new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000); // 10 days ago
         const flag = calculateAttendanceFlag(moderateDate.toISOString(), defaultSettings);
-        expect(flag).toBe(FlagStatus.AMARELA);
+        expect(flag).toBe(FlagStatus.YELLOW);
     });
 
     it('should return red flag for long absence', () => {
         const today = new Date();
         const oldDate = new Date(today.getTime() - 20 * 24 * 60 * 60 * 1000); // 20 days ago
         const flag = calculateAttendanceFlag(oldDate.toISOString(), defaultSettings);
-        expect(flag).toBe(FlagStatus.VERMELHA);
+        expect(flag).toBe(FlagStatus.RED);
     });
 
     it('should return red flag for null attendance', () => {
         const flag = calculateAttendanceFlag(null, defaultSettings);
-        expect(flag).toBe(FlagStatus.VERMELHA);
+        expect(flag).toBe(FlagStatus.RED);
     });
 
     it('should handle custom settings correctly', () => {
@@ -79,13 +79,13 @@ describe('Attendance Flag Calculation', () => {
         const today = new Date();
         const fiveDaysAgo = new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000);
         const flag = calculateAttendanceFlag(fiveDaysAgo.toISOString(), customSettings);
-        expect(flag).toBe(FlagStatus.AMARELA);
+        expect(flag).toBe(FlagStatus.YELLOW);
     });
 
     it('should return green flag for attendance on boundary (yellowFlagDays)', () => {
         const today = new Date();
         const boundaryDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000); // exactly 7 days
         const flag = calculateAttendanceFlag(boundaryDate.toISOString(), defaultSettings);
-        expect(flag).toBe(FlagStatus.VERDE);
+        expect(flag).toBe(FlagStatus.GREEN);
     });
 });
