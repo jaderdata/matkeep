@@ -388,24 +388,33 @@ const App: React.FC = () => {
 
   useEffect(() => {
     // Validar User Agent para segurança (Session Binding)
-    const validateUserAgent = async (currentSession: any) => {
+    const validateUserAgent = async (currentSession: any, isNewLogin: boolean = false) => {
       if (!currentSession?.user) return;
 
       const currentUA = navigator.userAgent;
       const storedUA = currentSession.user.user_metadata?.user_agent;
 
-      if (!storedUA) {
-        // Primeiro acesso ou legado: registrar UA
-        console.log('Security: Binding session to browser...');
+      // Se é um novo login, sempre atualizamos o User Agent vinculado
+      if (!storedUA || isNewLogin) {
+        console.log('Security: Binding session to current browser...');
         await supabase.auth.updateUser({
           data: { user_agent: currentUA }
         });
-      } else if (storedUA !== currentUA) {
-        // Mismatch detectado
-        console.warn('Security Alert: Browser mismatch detected.');
-        alert("⚠️ SECURITY ALERT\n\nSystem detected a change in your browser environment.\nFor your security, please update your session by logging in again.");
-        await supabase.auth.signOut();
-        window.location.href = '/';
+        return;
+      }
+
+      // Se não for novo login, verificamos se o ambiente mudou
+      if (storedUA !== currentUA) {
+        // Lógica simplificada para evitar falsos positivos em browsers que variam o UA (como Safari/iOS)
+        // Se os primeiros 100 caracteres forem iguais, geralmente é o mesmo browser/OS
+        const isMinorChange = storedUA.substring(0, 50) === currentUA.substring(0, 50);
+
+        if (!isMinorChange) {
+          console.warn('Security Alert: Browser mismatch detected.');
+          alert("⚠️ SECURITY ALERT\n\nSystem detected a change in your browser environment.\nFor your security, please update your session by logging in again.");
+          await supabase.auth.signOut();
+          window.location.href = '/';
+        }
       }
     };
 
@@ -413,7 +422,7 @@ const App: React.FC = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
-      if (session) validateUserAgent(session);
+      if (session) validateUserAgent(session, false);
     }).catch(() => setLoading(false));
 
     // Ouvir mudanças na autenticação
@@ -421,7 +430,7 @@ const App: React.FC = () => {
       setSession(session);
       setLoading(false);
       if (session && (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED')) {
-        validateUserAgent(session);
+        validateUserAgent(session, _event === 'SIGNED_IN');
       }
     });
 
