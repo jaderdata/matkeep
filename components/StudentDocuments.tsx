@@ -39,7 +39,7 @@ export const StudentDocuments: React.FC<StudentDocumentsProps> = ({ studentId, a
     };
 
     const handleDelete = async (docId: string, url: string) => {
-        if (!confirm('Deseja realmente excluir este documento?')) return;
+        if (!confirm('Are you sure you want to delete this document?')) return;
 
         const success = await deleteStudentDocument(docId, url);
         if (success) {
@@ -61,9 +61,9 @@ export const StudentDocuments: React.FC<StudentDocumentsProps> = ({ studentId, a
                 <div>
                     <h3 className="text-sm font-bold uppercase tracking-widest text-gray-900 flex items-center gap-2">
                         <FileText size={18} />
-                        Documentos do Aluno
+                        Student Documents
                     </h3>
-                    <p className="text-[10px] text-gray-500 uppercase font-medium mt-1">Armazene termos, atestados e contratos</p>
+                    <p className="text-[10px] text-gray-500 uppercase font-medium mt-1">Store terms, medical certificates and contracts</p>
                 </div>
 
                 <label className="cursor-pointer">
@@ -76,7 +76,7 @@ export const StudentDocuments: React.FC<StudentDocumentsProps> = ({ studentId, a
                     />
                     <div className={`flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-xs font-bold uppercase hover:bg-black transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                         {uploading ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />}
-                        {uploading ? 'Enviando...' : 'Anexar Documento'}
+                        {uploading ? 'Uploading...' : 'Attach Document'}
                     </div>
                 </label>
             </div>
@@ -88,7 +88,7 @@ export const StudentDocuments: React.FC<StudentDocumentsProps> = ({ studentId, a
             ) : documents.length === 0 ? (
                 <div className="text-center py-12 border-2 border-dashed border-gray-100">
                     <FileText className="mx-auto text-gray-200 mb-2" size={32} />
-                    <p className="text-xs text-gray-400 font-medium uppercase">Nenhum documento anexado</p>
+                    <p className="text-xs text-gray-400 font-medium uppercase">No documents attached</p>
                 </div>
             ) : (
                 <div className="grid gap-3">
@@ -116,14 +116,14 @@ export const StudentDocuments: React.FC<StudentDocumentsProps> = ({ studentId, a
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="p-2 text-gray-400 hover:text-gray-900 transition-colors"
-                                    title="Abrir"
+                                    title="Open"
                                 >
                                     <ExternalLink size={16} />
                                 </a>
                                 <button
                                     onClick={() => handleDelete(doc.id, doc.url)}
                                     className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                                    title="Excluir"
+                                    title="Delete"
                                 >
                                     <Trash2 size={16} />
                                 </button>

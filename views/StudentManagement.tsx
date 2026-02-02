@@ -822,7 +822,7 @@ const StudentManagement: React.FC = () => {
       {
         showEditModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="max-w-2xl w-full shadow-2xl overflow-hidden">
+            <Card className="max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
               <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-secondary)]">
                 <h3 className="text-sm font-black uppercase tracking-widest text-[var(--text-primary)]">Edit Student</h3>
                 <button onClick={() => setShowEditModal(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-2xl">&times;</button>
@@ -844,7 +844,7 @@ const StudentManagement: React.FC = () => {
               </div>
 
               {activeTab === 'details' ? (
-                <form onSubmit={handleUpdateStudent} className="p-6 space-y-4" autoComplete="off">
+                <form onSubmit={handleUpdateStudent} className="p-6 space-y-4 flex-1 overflow-y-auto" autoComplete="off">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
                       <Input
@@ -903,24 +903,7 @@ const StudentManagement: React.FC = () => {
                         </span>
                       </div>
 
-                      <div className="w-full">
-                        <Input
-                          label="Card Pass / Barcode (Auto-Generated)"
-                          value={editForm.card_pass_code}
-                          onChange={e => setEditForm({ ...editForm, card_pass_code: e.target.value })}
-                          placeholder="Scan or type code..."
-                          disabled
-                        />
-                      </div>
 
-                      <div className="bg-white p-4 rounded shadow-sm">
-                        <Barcode
-                          value={editForm.card_pass_code || '000000'}
-                          width={1.5}
-                          height={50}
-                          fontSize={12}
-                        />
-                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2 pt-4 border-t border-gray-100">
@@ -934,7 +917,7 @@ const StudentManagement: React.FC = () => {
                   </div>
                 </form>
               ) : (
-                <div className="p-6">
+                <div className="p-6 flex-1 overflow-y-auto">
                   <StudentDocuments studentId={selectedStudent?.id || ''} academyId={academyId || ''} />
                 </div>
               )}
@@ -1136,7 +1119,7 @@ const StudentManagement: React.FC = () => {
       {
         showCardModal && selectedStudentForCard && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200" onClick={() => setShowCardModal(false)}>
-            <div className="w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="w-full max-w-xs space-y-4" onClick={e => e.stopPropagation()}>
 
               {/* Card Container - Reused from StudentPortal */}
               <div
@@ -1202,7 +1185,7 @@ const StudentManagement: React.FC = () => {
                       <div className="transform scale-x-110 origin-center">
                         <Barcode
                           value={String(selectedStudentForCard.card_pass_code || selectedStudentForCard.internal_id || '000000')}
-                          width={2.2}
+                          width={1.6}
                           height={70}
                           displayValue={false}
                           margin={0}

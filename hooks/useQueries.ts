@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { Student, UserStatus } from '../types';
 import { toast } from 'sonner';
@@ -6,6 +7,33 @@ import { toast } from 'sonner';
 // Custom Hooks para centralizar a lógica de busca e mutação com cache e erro automático
 
 export const useStudents = (academyId: string | null) => {
+    const queryClient = useQueryClient();
+
+    useEffect(() => {
+        if (!academyId) return;
+
+        const channel = supabase
+            .channel(`students-changes-${academyId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'students',
+                    filter: `academy_id=eq.${academyId}`,
+                },
+                (payload) => {
+                    // console.log('Realtime update:', payload);
+                    queryClient.invalidateQueries({ queryKey: ['students', academyId] });
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [academyId, queryClient]);
+
     return useQuery({
         queryKey: ['students', academyId],
         queryFn: async () => {
