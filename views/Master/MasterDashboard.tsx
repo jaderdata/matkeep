@@ -35,8 +35,8 @@ const MasterDashboard: React.FC = () => {
             const { count: academiesCount } = await supabase.from('academies').select('*', { count: 'exact', head: true });
             const { count: studentsCount } = await supabase.from('students').select('*', { count: 'exact', head: true });
 
-            // Para alunos ativos, precisamos filtrar (count não funciona bem com filter no head as vezes, vamos tentar)
-            const { count: activeCount } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('status', 'Ativo');
+            // Para alunos ativos, precisamos filtrar
+            const { count: activeCount } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('status', 'Active');
 
             setStats({
                 academies: academiesCount || 0,
