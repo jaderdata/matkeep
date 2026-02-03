@@ -13,6 +13,7 @@ const StudentCheckIn: React.FC = () => {
     const [code, setCode] = useState('');
     const [lastScannedCode, setLastScannedCode] = useState('');
     const [debugLog, setDebugLog] = useState<string>('');
+    const [forceCheckIn, setForceCheckIn] = useState(false); // New State
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState('Waiting for card scan...');
     const [student, setStudent] = useState<Student | null>(null);
@@ -54,7 +55,7 @@ const StudentCheckIn: React.FC = () => {
                 return;
             }
 
-            const result = await attendanceService.registerAttendance(code, academy.id);
+            const result = await attendanceService.registerAttendance(code, academy.id, forceCheckIn);
 
             if (result.success) {
                 setStatus('success');
@@ -265,6 +266,19 @@ const StudentCheckIn: React.FC = () => {
                         </p>
                     </div>
                 </div>
+
+                {/* Force Check-in Toggle (Hidden/Debug UI) */}
+                {showDebug && (
+                    <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 bg-red-900/80 px-4 py-2 rounded-full border border-red-500/50 backdrop-blur-md z-50 flex items-center gap-3">
+                        <span className="text-white text-xs font-bold uppercase tracking-widest">Force Check-in (Ignore Timer)</span>
+                        <button
+                            onClick={() => setForceCheckIn(!forceCheckIn)}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${forceCheckIn ? 'bg-green-500' : 'bg-gray-600'}`}
+                        >
+                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${forceCheckIn ? 'left-6' : 'left-1'}`}></div>
+                        </button>
+                    </div>
+                )}
 
                 {/* DEBUG PANEL OVERLAY */}
                 {showDebug && (

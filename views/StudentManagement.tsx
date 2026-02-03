@@ -1059,7 +1059,7 @@ const StudentManagement: React.FC = () => {
                               {date.toLocaleDateString('en-US')}
                             </td>
                             <td className="p-3 text-[var(--text-secondary)] font-mono text-xs">
-                              {date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                              {date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}
                             </td>
                           </tr>
                         );
