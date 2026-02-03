@@ -5,6 +5,7 @@ import { Card, Input, Button, Checkbox } from '../components/UI';
 import { Lock, Mail, Loader2 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { logAuditActivity } from '../services/auditService';
+import { isMaster } from '../utils';
 
 const Login: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -71,7 +72,7 @@ const Login: React.FC = () => {
                 );
             }
 
-            if (data.user?.email === 'jader_dourado@hotmail.com') {
+            if (isMaster(data.user)) {
                 navigate('/master/dashboard');
             } else {
                 navigate('/academy/dashboard');

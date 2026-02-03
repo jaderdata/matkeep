@@ -67,3 +67,34 @@ export const formatPhoneToE164 = (phone: string): string => {
 
     return digitsOnly;
 };
+
+/**
+ * Check if a user has Master Admin privileges
+ * Checks both app_metadata and user_metadata for role: 'master'
+ */
+export const isMaster = (user: any): boolean => {
+    if (!user) return false;
+
+    // Check app_metadata (preferred for secure claims)
+    if (user.app_metadata?.role === 'master') return true;
+
+    // Check user_metadata (fallback or explicit set)
+    if (user.user_metadata?.role === 'master') return true;
+
+    // TODO: Remove this hardcoded check once all master users have the role set in DB
+    // Keeping for temporary backward compatibility during migration
+    if (user.email === 'jader_dourado@hotmail.com') return true;
+
+    return false;
+};
+
+/**
+ * Check if a user is an Academy Admin
+ * Default role for most users if not master
+ */
+export const isAcademyAdmin = (user: any): boolean => {
+    if (!user) return false;
+    // If they have a user object and ARE NOT master, they are effectively an academy admin
+    // (unless we add more roles later like 'instructor', 'student' etc at this auth level)
+    return !isMaster(user);
+};

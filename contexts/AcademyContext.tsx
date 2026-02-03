@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../services/supabase';
 import { Academy } from '../types';
+import { isMaster } from '../utils';
 
 interface AcademyContextType {
     academy: Academy | null;
@@ -23,7 +24,7 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (!session?.user?.email) return null;
 
             // Special case for Master Admin
-            if (session.user.email === 'jader_dourado@hotmail.com') {
+            if (isMaster(session.user)) {
                 const actingId = localStorage.getItem('master_acting_as_academy_id');
                 if (actingId) {
                     const { data, error } = await supabase

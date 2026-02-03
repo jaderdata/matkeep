@@ -4,7 +4,7 @@ import { Save, History, Shield, Loader2, Camera, User, ClipboardList, Lock } fro
 import { supabase } from '../services/supabase';
 import { Academy } from '../types';
 import { useRef } from 'react';
-import { formatUSPhone } from '../utils';
+import { formatUSPhone, isMaster as checkIsMaster } from '../utils';
 import { logAuditActivity, getRecentAuditLogs, getActionDisplayName, AuditLog } from '../services/auditService';
 import { useAcademy } from '../contexts/AcademyContext';
 
@@ -41,7 +41,8 @@ const AcademySettings: React.FC = () => {
   const fetchUser = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user?.email) {
-      if (session.user.email === 'jader_dourado@hotmail.com' && ctxAcademy) {
+      // Use the helper, but since we have a local state called isMaster, we renamed the import to checkIsMaster
+      if (checkIsMaster(session.user) && ctxAcademy) {
         // Master Admin viewing another academy
         // We need to fetch the REAL admin email for this academy to show correct data
         const { data: realAcademy } = await supabase

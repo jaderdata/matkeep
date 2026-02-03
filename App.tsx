@@ -27,6 +27,7 @@ import { PWAManager } from './components/PWAManager';
 import { supabase } from './services/supabase';
 import { Academy } from './types';
 import { TrialBanner } from './components/TrialBanner';
+import { isMaster } from './utils';
 
 const SidebarLink: React.FC<{ to: string; icon: React.ReactNode; label: string }> = ({ to, icon, label }) => {
   const location = useLocation();
@@ -52,8 +53,7 @@ const AuthRedirect: React.FC<{ session: any; children: React.ReactNode }> = ({ s
   if (session) {
     // If it's a master admin, don't auto-redirect to academy dashboard 
     // because they might be testing public links.
-    const isMaster = session.user?.user_metadata?.role === 'master' || session.user?.app_metadata?.role === 'master';
-    if (isMaster) {
+    if (isMaster(session.user)) {
       return <>{children}</>;
     }
     return <Navigate to="/academy/dashboard" replace />;
@@ -70,8 +70,7 @@ const RequireAuth: React.FC<{ session: any; children: React.ReactNode }> = ({ se
 const RequireMasterAuth: React.FC<{ session: any; children: React.ReactNode }> = ({ session, children }) => {
   if (!session) return <Navigate to="/login" replace />;
   // NEW: Check for master role via JWT claim instead of hardcoded email
-  const isMaster = session.user?.user_metadata?.role === 'master' || session.user?.app_metadata?.role === 'master';
-  if (!isMaster) {
+  if (!isMaster(session.user)) {
     return <Navigate to="/academy/dashboard" replace />;
   }
   return <>{children}</>;
@@ -186,7 +185,7 @@ const AcademyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               <div className="flex flex-col overflow-hidden">
                 <span className="text-sm font-bold truncate leading-tight">{academy?.name || 'Academy'}</span>
                 <span className="text-[10px] text-gray-500 uppercase tracking-tighter">
-                  {user?.email === 'jader_dourado@hotmail.com' ? (
+                  {isMaster(user) ? (
                     <span className="text-amber-600 font-black">MASTER ADMIN ACCESS</span>
                   ) : (
                     `${user?.email ? user.email.split('@')[0] : 'Admin'} / ${user?.role || 'Instr/Admin'}`
@@ -481,7 +480,7 @@ const App: React.FC = () => {
             localStorage.getItem('matkeep_student_id')
               ? <Navigate to={`/student/portal/${localStorage.getItem('matkeep_academy_id')}`} replace />
               : session
-                ? (session.user.email === 'jader_dourado@hotmail.com' ? <Navigate to="/master/dashboard" replace /> : <Navigate to="/academy/dashboard" replace />)
+                ? (isMaster(session.user) ? <Navigate to="/master/dashboard" replace /> : <Navigate to="/academy/dashboard" replace />)
                 : <Navigate to="/login" replace />
           } />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -23,11 +23,19 @@ export const useStudents = (academyId: string | null) => {
                     filter: `academy_id=eq.${academyId}`,
                 },
                 (payload) => {
-                    // console.log('Realtime update:', payload);
+                    console.log('Realtime update received:', payload);
                     queryClient.invalidateQueries({ queryKey: ['students', academyId] });
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    // console.log('Subscribed to students changes');
+                }
+                if (status === 'CHANNEL_ERROR') {
+                    console.error('Realtime channel error - forcing refetch');
+                    queryClient.invalidateQueries({ queryKey: ['students', academyId] });
+                }
+            });
 
         return () => {
             supabase.removeChannel(channel);

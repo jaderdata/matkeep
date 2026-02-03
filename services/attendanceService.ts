@@ -117,8 +117,8 @@ export const attendanceService = {
             const { data: freshStudent, error: updateError } = await supabase
                 .from('students')
                 .update({
-                    last_attendance: new Date().toISOString()
-                    // In a real app we might also increment degrees or check belt progress here
+                    last_attendance: new Date().toISOString(),
+                    academy_id: student.academy_id // Redundant update to ensure Realtime filter triggers reliably
                 })
                 .eq('id', student.id)
                 .select()
@@ -175,7 +175,10 @@ export const attendanceService = {
             // 4. Update Student
             const { data: freshStudent, error: updateError } = await supabase
                 .from('students')
-                .update({ last_attendance: new Date().toISOString() })
+                .update({
+                    last_attendance: new Date().toISOString(),
+                    academy_id: student.academy_id
+                })
                 .eq('id', student.id)
                 .select()
                 .single();

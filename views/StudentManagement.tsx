@@ -5,7 +5,7 @@ import { Card, Input, Button, Badge, Select } from '../components/UI';
 import { FlagStatus, Belt, UserStatus, Student } from '../types';
 import { supabase } from '../services/supabase';
 import { attendanceService } from '../services/attendanceService';
-import { Loader2, CreditCard, Hash, FileDown, ExternalLink } from 'lucide-react';
+import { Loader2, CreditCard, Hash, FileDown, ExternalLink, RefreshCw } from 'lucide-react';
 import Barcode from 'react-barcode';
 import { toPng } from 'html-to-image'; // Replaced html2canvas for better modern CSS support
 import { formatUSPhone } from '../utils';
@@ -491,6 +491,10 @@ const StudentManagement: React.FC = () => {
           <p className="text-gray-500 text-sm">View and manage all students linked to your academy.</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="secondary" className="flex items-center gap-2" onClick={() => refetchStudents()}>
+            <RefreshCw size={18} className={studentsLoading ? "animate-spin" : ""} />
+            <span className="hidden md:inline">Refresh</span>
+          </Button>
           <Button variant="secondary" className="flex items-center gap-2" onClick={handleExportCSV}>
             <FileDown size={18} />
             <span>Export CSV</span>
